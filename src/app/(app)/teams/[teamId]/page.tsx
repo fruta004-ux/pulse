@@ -47,12 +47,23 @@ export default function TeamDetailPage({ params }: { params: Promise<{ teamId: s
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
-      <TeamHeader team={team} />
-      <DirectionSection teamId={teamId} />
-      <IssueTracker issues={issues} teamId={teamId} users={users} onRefresh={refresh} />
-      <ActionItemList actions={actions} teamId={teamId} users={users} onRefresh={refresh} />
-      <TeamMemos teamId={teamId} />
+    <div className="max-w-6xl mx-auto">
+      <div className="mb-6">
+        <TeamHeader team={team} />
+      </div>
+      <div className="flex gap-6 items-start">
+        {/* Left: Direction */}
+        <div className="w-72 shrink-0 sticky top-20">
+          <DirectionSection teamId={teamId} />
+        </div>
+
+        {/* Right: Main content */}
+        <div className="flex-1 min-w-0 space-y-6">
+          <IssueTracker issues={issues} teamId={teamId} users={users} onRefresh={refresh} />
+          <ActionItemList actions={actions} teamId={teamId} users={users} onRefresh={refresh} />
+          <TeamMemos teamId={teamId} />
+        </div>
+      </div>
     </div>
   );
 }
