@@ -8,6 +8,7 @@ import type {
   DbActionHistory,
   DbTeamMemo,
   DbDecisionLog,
+  DbTeamDirection,
 } from '@/types/database';
 
 // ── Fetch helpers ─────────────────────────────────────────
@@ -362,6 +363,45 @@ export async function updateTeamMemo(id: string, content: string): Promise<void>
 export async function deleteTeamMemo(id: string): Promise<void> {
   const { error } = await supabase
     .from('team_memos')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// ── Team Directions ──────────────────────────────────────
+
+export async function fetchTeamDirections(teamId: string): Promise<DbTeamDirection[]> {
+  const { data, error } = await supabase
+    .from('team_directions')
+    .select('*')
+    .eq('team_id', teamId)
+    .order('sort_order')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as DbTeamDirection[];
+}
+
+export async function createTeamDirection(teamId: string, title: string, content: string): Promise<DbTeamDirection> {
+  const { data, error } = await supabase
+    .from('team_directions')
+    .insert({ team_id: teamId, title, content } as Record<string, unknown>)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbTeamDirection;
+}
+
+export async function updateTeamDirection(id: string, updates: Partial<Pick<DbTeamDirection, 'title' | 'content'>>): Promise<void> {
+  const { error } = await supabase
+    .from('team_directions')
+    .update(updates as Record<string, unknown>)
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteTeamDirection(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('team_directions')
     .delete()
     .eq('id', id);
   if (error) throw error;

@@ -3,6 +3,7 @@
 import { use } from 'react';
 import { usePulseData } from '@/hooks/usePulseData';
 import TeamHeader from '@/components/team/TeamHeader';
+import DirectionSection from '@/components/team/DirectionSection';
 import IssueTracker from '@/components/team/IssueTracker';
 import ActionItemList from '@/components/team/ActionItemList';
 import TeamMemos from '@/components/team/TeamMemos';
@@ -48,6 +49,7 @@ export default function TeamDetailPage({ params }: { params: Promise<{ teamId: s
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       <TeamHeader team={team} />
+      <DirectionSection teamId={teamId} />
       <IssueTracker issues={issues} teamId={teamId} users={users} onRefresh={refresh} />
       <ActionItemList actions={actions} teamId={teamId} users={users} onRefresh={refresh} />
       <TeamMemos teamId={teamId} />

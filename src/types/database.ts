@@ -93,6 +93,15 @@ export interface DbTeamMemo {
   created_at: string;
 }
 
+export interface DbTeamDirection {
+  id: string;
+  team_id: string;
+  title: string;
+  content: string;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface DbDecisionLog {
   id: string;
   team_id: string;
