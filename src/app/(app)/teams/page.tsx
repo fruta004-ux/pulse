@@ -31,7 +31,7 @@ export default function TeamsPage() {
         <h1 className="text-2xl font-bold text-gray-900">조직도</h1>
         <p className="text-sm text-gray-500 mt-1">팀을 드래그하여 조직도를 구성하세요</p>
       </div>
-      <OrgCanvas teams={teams} issues={issues} onPositionChange={refresh} />
+      <OrgCanvas teams={teams} issues={issues} />
       <UpdateModal teams={teams} reports={reports} users={users} onSuccess={refresh} />
     </div>
   );

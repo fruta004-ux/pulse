@@ -16,7 +16,6 @@ import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 interface Props {
   teams: DbTeam[];
   issues: DbIssue[];
-  onPositionChange?: () => void;
 }
 
 interface DragState {
@@ -81,7 +80,7 @@ function autoLayout(teams: DbTeam[]): Map<string, { x: number; y: number }> {
   return positions;
 }
 
-export default function OrgCanvas({ teams, issues, onPositionChange }: Props) {
+export default function OrgCanvas({ teams, issues }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(
     () => autoLayout(teams)
@@ -92,8 +91,27 @@ export default function OrgCanvas({ teams, issues, onPositionChange }: Props) {
   const [panning, setPanning] = useState<{ startX: number; startY: number; camX: number; camY: number } | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const teamsRef = useRef(teams);
   useEffect(() => {
-    setPositions(autoLayout(teams));
+    const prevIds = new Set(teamsRef.current.map((t) => t.id));
+    const currIds = new Set(teams.map((t) => t.id));
+    const added = teams.filter((t) => !prevIds.has(t.id));
+    const removed = [...prevIds].filter((id) => !currIds.has(id));
+    teamsRef.current = teams;
+
+    if (added.length > 0 || removed.length > 0) {
+      setPositions((prev) => {
+        const next = new Map(prev);
+        removed.forEach((id) => next.delete(id));
+        let maxX = 0;
+        next.forEach(({ x }) => { if (x + CARD_W > maxX) maxX = x + CARD_W; });
+        added.forEach((t) => {
+          next.set(t.id, { x: t.pos_x || maxX + 60, y: t.pos_y || 0 });
+          maxX += CARD_W + 60;
+        });
+        return next;
+      });
+    }
   }, [teams]);
 
   const savePosition = useCallback(
@@ -102,13 +120,12 @@ export default function OrgCanvas({ teams, issues, onPositionChange }: Props) {
       saveTimerRef.current = setTimeout(async () => {
         try {
           await updateTeamPosition(teamId, x, y);
-          onPositionChange?.();
         } catch (err) {
           console.error('Failed to save position', err);
         }
-      }, 300);
+      }, 500);
     },
-    [onPositionChange]
+    []
   );
 
   const handleNodePointerDown = useCallback(
@@ -209,8 +226,10 @@ export default function OrgCanvas({ teams, issues, onPositionChange }: Props) {
     });
   }, [positions]);
 
+  const initialFitDone = useRef(false);
   useEffect(() => {
-    if (positions.size > 0 && camera.x === 0 && camera.y === 0) {
+    if (!initialFitDone.current && positions.size > 0) {
+      initialFitDone.current = true;
       const timer = setTimeout(fitToView, 100);
       return () => clearTimeout(timer);
     }
