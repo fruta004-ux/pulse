@@ -279,11 +279,14 @@ export async function createIssue(issue: {
 
 export async function updateIssue(
   id: string,
-  updates: Partial<Pick<DbIssue, 'title' | 'description' | 'impact' | 'state' | 'assignee_name' | 'due_date'>>
+  updates: Partial<Pick<DbIssue, 'title' | 'description' | 'impact' | 'state' | 'assignee_name' | 'due_date' | 'decision'>>
 ): Promise<void> {
   const payload: Record<string, unknown> = { ...updates };
   if (updates.state === 'resolved') {
     payload.resolved_at = new Date().toISOString();
+  }
+  if (updates.decision !== undefined) {
+    payload.decision_at = updates.decision ? new Date().toISOString() : null;
   }
   const { error } = await supabase
     .from('issues')

@@ -8,7 +8,17 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, ChevronDown, ChevronUp, Pencil, Check, X, AlertCircle } from 'lucide-react';
+import {
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+  Check,
+  X,
+  AlertCircle,
+  CheckCircle2,
+  Scale,
+} from 'lucide-react';
 
 interface Props {
   issues: DbIssue[];
@@ -31,8 +41,16 @@ const stateConfig: Record<IssueState, { label: string; color: string }> = {
 
 const STATE_OPTIONS: IssueState[] = ['open', 'in_progress', 'resolved'];
 
+type TabType = 'active' | 'resolved';
+
 export default function IssueTracker({ issues, teamId, users, onRefresh }: Props) {
   const teamIssues = getTeamIssues(issues, teamId);
+  const activeIssues = teamIssues.filter((i) => i.state !== 'resolved');
+  const resolvedIssues = teamIssues.filter((i) => i.state === 'resolved');
+
+  const [tab, setTab] = useState<TabType>('active');
+  const displayIssues = tab === 'active' ? activeIssues : resolvedIssues;
+
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
@@ -47,6 +65,9 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
 
   const [editDescId, setEditDescId] = useState<string | null>(null);
   const [editDesc, setEditDesc] = useState('');
+
+  const [editDecisionId, setEditDecisionId] = useState<string | null>(null);
+  const [editDecision, setEditDecision] = useState('');
 
   const [saving, setSaving] = useState(false);
 
@@ -121,7 +142,26 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
     }
   };
 
-  const openCount = teamIssues.filter((i) => i.state !== 'resolved').length;
+  const startEditDecision = (issue: DbIssue) => {
+    setEditDecisionId(issue.id);
+    setEditDecision(issue.decision ?? '');
+    setExpandedId(issue.id);
+  };
+
+  const saveDecision = async (issueId: string) => {
+    setSaving(true);
+    try {
+      await updateIssue(issueId, {
+        decision: editDecision.trim() || undefined,
+      });
+      setEditDecisionId(null);
+      await onRefresh();
+    } catch (err) {
+      console.error('[PULSE] update decision error', err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="rounded-2xl border-2 border-blue-200 bg-white shadow-lg overflow-hidden">
@@ -130,20 +170,69 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
         <div className="flex items-center gap-2.5">
           <AlertCircle className="h-5 w-5 text-blue-600" />
           <h3 className="font-bold text-lg text-gray-900">이슈 트래커</h3>
-          {openCount > 0 && (
-            <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
-              {openCount}
-            </span>
-          )}
         </div>
         <Button
           variant="outline"
           size="sm"
           className="h-8 text-xs gap-1.5 rounded-lg border-gray-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all duration-200"
-          onClick={() => setShowCreate(!showCreate)}
+          onClick={() => { setShowCreate(!showCreate); setTab('active'); }}
         >
           <Plus className="h-3.5 w-3.5" /> 이슈 추가
         </Button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-gray-100">
+        <button
+          onClick={() => setTab('active')}
+          className={cn(
+            'flex-1 py-2.5 text-sm font-medium text-center transition-all duration-200 relative',
+            tab === 'active'
+              ? 'text-blue-700'
+              : 'text-gray-400 hover:text-gray-600'
+          )}
+        >
+          <span className="flex items-center justify-center gap-1.5">
+            <AlertCircle className="h-3.5 w-3.5" />
+            진행중
+            {activeIssues.length > 0 && (
+              <span className={cn(
+                'rounded-full px-1.5 py-0.5 text-xs font-semibold min-w-[20px]',
+                tab === 'active' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
+              )}>
+                {activeIssues.length}
+              </span>
+            )}
+          </span>
+          {tab === 'active' && (
+            <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-blue-600 rounded-full" />
+          )}
+        </button>
+        <button
+          onClick={() => setTab('resolved')}
+          className={cn(
+            'flex-1 py-2.5 text-sm font-medium text-center transition-all duration-200 relative',
+            tab === 'resolved'
+              ? 'text-green-700'
+              : 'text-gray-400 hover:text-gray-600'
+          )}
+        >
+          <span className="flex items-center justify-center gap-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            완료
+            {resolvedIssues.length > 0 && (
+              <span className={cn(
+                'rounded-full px-1.5 py-0.5 text-xs font-semibold min-w-[20px]',
+                tab === 'resolved' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+              )}>
+                {resolvedIssues.length}
+              </span>
+            )}
+          </span>
+          {tab === 'resolved' && (
+            <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-green-600 rounded-full" />
+          )}
+        </button>
       </div>
 
       {/* Create Form */}
@@ -196,15 +285,16 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
 
       {/* Issue List */}
       <div className="divide-y divide-gray-100">
-        {teamIssues.length === 0 && !showCreate ? (
+        {displayIssues.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-gray-400">
-            등록된 이슈가 없습니다
+            {tab === 'active' ? '진행중인 이슈가 없습니다' : '완료된 이슈가 없습니다'}
           </div>
         ) : (
-          teamIssues.map((issue) => {
+          displayIssues.map((issue) => {
             const isExpanded = expandedId === issue.id;
             const isEditingTitle = editTitleId === issue.id;
             const isEditingDesc = editDescId === issue.id;
+            const isEditingDecision = editDecisionId === issue.id;
 
             return (
               <div key={issue.id} className="hover:bg-gray-50/50 transition-colors duration-200">
@@ -267,6 +357,11 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
+                    {issue.decision && (
+                      <span className="rounded-full bg-purple-50 text-purple-600 border border-purple-100 px-2 py-0.5 text-xs font-medium flex items-center gap-1">
+                        <Scale className="h-3 w-3" /> 결정
+                      </span>
+                    )}
                     <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', impactConfig[issue.impact].color)}>
                       {impactConfig[issue.impact].label}
                     </span>
@@ -292,9 +387,10 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                   </div>
                 )}
 
-                {/* Expanded Description */}
+                {/* Expanded Detail */}
                 {isExpanded && (
-                  <div className="border-t border-gray-100 mx-5 py-3 pl-9 space-y-2">
+                  <div className="border-t border-gray-100 mx-5 py-3 pl-9 space-y-3">
+                    {/* Description */}
                     {isEditingDesc ? (
                       <div className="space-y-2">
                         <Textarea
@@ -328,16 +424,79 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                         onClick={() => startEditDesc(issue)}
                         className="cursor-pointer rounded-xl hover:bg-gray-50 p-3 -m-3 transition-all duration-200 group/desc"
                       >
+                        <p className="text-xs font-semibold text-gray-500 mb-1">내용</p>
                         {issue.description ? (
                           <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
                             {issue.description}
                           </p>
                         ) : (
-                          <p className="text-sm text-gray-400 italic">내용을 클릭하여 추가하세요...</p>
+                          <p className="text-sm text-gray-400 italic">클릭하여 내용을 추가하세요...</p>
                         )}
                         <Pencil className="h-3 w-3 text-gray-300 mt-1 opacity-0 group-hover/desc:opacity-100 transition-opacity" />
                       </div>
                     )}
+
+                    {/* Decision */}
+                    <div className="border-t border-gray-100 pt-3">
+                      {isEditingDecision ? (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <Scale className="h-3.5 w-3.5 text-purple-500" />
+                            <span className="text-xs font-semibold text-purple-600">결정사항</span>
+                          </div>
+                          <Textarea
+                            className="text-sm resize-none bg-white border-gray-200 focus:border-purple-400 rounded-xl"
+                            rows={3}
+                            value={editDecision}
+                            onChange={(e) => setEditDecision(e.target.value)}
+                            placeholder="이 이슈에 대한 결정사항을 입력하세요..."
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveDecision(issue.id); }
+                              if (e.key === 'Escape') setEditDecisionId(null);
+                            }}
+                          />
+                          <div className="flex justify-end gap-2">
+                            <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg" onClick={() => setEditDecisionId(null)}>
+                              취소
+                            </Button>
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs gap-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+                              disabled={saving}
+                              onClick={() => saveDecision(issue.id)}
+                            >
+                              <Check className="h-3 w-3" /> {saving ? '저장 중...' : '저장'}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          onClick={() => startEditDecision(issue)}
+                          className="cursor-pointer rounded-xl hover:bg-purple-50/50 p-3 -m-3 transition-all duration-200 group/dec"
+                        >
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <Scale className="h-3.5 w-3.5 text-purple-500" />
+                            <span className="text-xs font-semibold text-purple-600">결정사항</span>
+                          </div>
+                          {issue.decision ? (
+                            <div className="rounded-lg bg-purple-50 border border-purple-100 p-2.5">
+                              <p className="text-sm text-purple-800 whitespace-pre-wrap leading-relaxed">
+                                {issue.decision}
+                              </p>
+                              {issue.decision_at && (
+                                <p className="text-xs text-purple-400 mt-1">
+                                  {new Date(issue.decision_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 결정
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-gray-400 italic">클릭하여 결정사항을 입력하세요...</p>
+                          )}
+                          <Pencil className="h-3 w-3 text-gray-300 mt-1 opacity-0 group-hover/dec:opacity-100 transition-opacity" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

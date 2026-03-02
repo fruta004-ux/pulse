@@ -60,6 +60,8 @@ export interface DbIssue {
   owner_user_id: string | null;
   assignee_name: string;
   due_date: string | null;
+  decision: string | null;
+  decision_at: string | null;
   created_at: string;
   resolved_at: string | null;
 }

@@ -5,7 +5,6 @@ import { usePulseData } from '@/hooks/usePulseData';
 import TeamHeader from '@/components/team/TeamHeader';
 import IssueTracker from '@/components/team/IssueTracker';
 import ActionItemList from '@/components/team/ActionItemList';
-import DecisionSection from '@/components/team/DecisionSection';
 import TeamMemos from '@/components/team/TeamMemos';
 import { Loader2 } from 'lucide-react';
 
@@ -51,7 +50,6 @@ export default function TeamDetailPage({ params }: { params: Promise<{ teamId: s
       <TeamHeader team={team} />
       <IssueTracker issues={issues} teamId={teamId} users={users} onRefresh={refresh} />
       <ActionItemList actions={actions} teamId={teamId} users={users} onRefresh={refresh} />
-      <DecisionSection decisions={decisions} teamId={teamId} onRefresh={refresh} />
       <TeamMemos teamId={teamId} />
     </div>
   );
