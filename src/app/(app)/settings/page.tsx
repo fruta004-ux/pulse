@@ -23,6 +23,7 @@ export default function SettingsPage() {
   const [leaderName, setLeaderName] = useState('');
   const [description, setDescription] = useState('');
   const [memberCount, setMemberCount] = useState(0);
+  const [parentTeamId, setParentTeamId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
 
   const openCreate = () => {
@@ -31,6 +32,7 @@ export default function SettingsPage() {
     setLeaderName('');
     setDescription('');
     setMemberCount(0);
+    setParentTeamId('');
     setModalOpen(true);
   };
 
@@ -40,6 +42,7 @@ export default function SettingsPage() {
     setLeaderName(team.leader_name ?? '');
     setDescription(team.description ?? '');
     setMemberCount(team.member_count);
+    setParentTeamId(team.parent_team_id ?? '');
     setModalOpen(true);
   };
 
@@ -53,6 +56,7 @@ export default function SettingsPage() {
           leader_name: leaderName.trim(),
           description: description.trim(),
           member_count: memberCount,
+          parent_team_id: parentTeamId || null,
         });
       } else {
         await createTeam({
@@ -139,6 +143,11 @@ export default function SettingsPage() {
                     {team.member_count > 0 && (
                       <span className="text-xs text-gray-400">{team.member_count}명</span>
                     )}
+                    {team.parent_team_id && (
+                      <span className="text-xs text-blue-500 bg-blue-50 px-1.5 py-0.5 rounded">
+                        상위: {teams.find((t) => t.id === team.parent_team_id)?.name ?? '—'}
+                      </span>
+                    )}
                   </div>
                   {team.description && (
                     <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{team.description}</p>
@@ -206,6 +215,23 @@ export default function SettingsPage() {
                 value={memberCount}
                 onChange={(e) => setMemberCount(Number(e.target.value))}
               />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-1.5 block">상위 팀</label>
+              <select
+                className="w-full h-11 bg-white border border-gray-200 focus:border-blue-400 focus:ring-blue-400 rounded-xl px-3 text-sm text-gray-700"
+                value={parentTeamId}
+                onChange={(e) => setParentTeamId(e.target.value)}
+              >
+                <option value="">없음 (최상위)</option>
+                {teams
+                  .filter((t) => t.id !== editingTeam?.id)
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+              </select>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-700 mb-1.5 block">설명</label>

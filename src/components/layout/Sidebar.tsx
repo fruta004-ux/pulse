@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useUIStore } from '@/stores/useUIStore';
 import {
   LayoutDashboard,
-  Users,
+  Network,
   FileText,
   Settings,
   ChevronLeft,
@@ -16,7 +16,7 @@ import {
 
 const NAV = [
   { href: '/', label: '대시보드', icon: LayoutDashboard },
-  { href: '/teams', label: '팀 보드', icon: Users },
+  { href: '/teams', label: '조직도', icon: Network },
   { href: '/decisions', label: '결정 로그', icon: FileText },
   { href: '/settings', label: '설정', icon: Settings },
 ];

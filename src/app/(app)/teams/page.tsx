@@ -1,7 +1,7 @@
 'use client';
 
 import { usePulseData } from '@/hooks/usePulseData';
-import TeamCardGrid from '@/components/dashboard/TeamCardGrid';
+import OrgCanvas from '@/components/orgchart/OrgCanvas';
 import UpdateModal from '@/components/update/UpdateModal';
 import { Loader2 } from 'lucide-react';
 
@@ -26,12 +26,12 @@ export default function TeamsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">팀 보드</h1>
-        <p className="text-sm text-gray-500 mt-1">팀별 이슈를 한눈에 확인하세요</p>
+        <h1 className="text-2xl font-bold text-gray-900">조직도</h1>
+        <p className="text-sm text-gray-500 mt-1">팀을 드래그하여 조직도를 구성하세요</p>
       </div>
-      <TeamCardGrid teams={teams} issues={issues} />
+      <OrgCanvas teams={teams} issues={issues} onPositionChange={refresh} />
       <UpdateModal teams={teams} reports={reports} users={users} onSuccess={refresh} />
     </div>
   );

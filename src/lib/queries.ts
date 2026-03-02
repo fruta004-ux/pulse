@@ -111,11 +111,34 @@ export async function createTeam(team: {
 
 export async function updateTeam(
   id: string,
-  updates: Partial<Pick<DbTeam, 'name' | 'leader_name' | 'description' | 'member_count' | 'is_active'>>
+  updates: Partial<Pick<DbTeam, 'name' | 'leader_name' | 'description' | 'member_count' | 'is_active' | 'parent_team_id' | 'pos_x' | 'pos_y'>>
 ): Promise<void> {
   const { error } = await supabase
     .from('teams')
     .update(updates as Record<string, unknown>)
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function updateTeamPosition(
+  id: string,
+  pos_x: number,
+  pos_y: number
+): Promise<void> {
+  const { error } = await supabase
+    .from('teams')
+    .update({ pos_x, pos_y } as Record<string, unknown>)
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function updateTeamParent(
+  id: string,
+  parent_team_id: string | null
+): Promise<void> {
+  const { error } = await supabase
+    .from('teams')
+    .update({ parent_team_id } as Record<string, unknown>)
     .eq('id', id);
   if (error) throw error;
 }

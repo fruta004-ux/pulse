@@ -25,6 +25,9 @@ export interface DbTeam {
   member_count: number;
   sort_order: number;
   is_active: boolean;
+  parent_team_id: string | null;
+  pos_x: number;
+  pos_y: number;
   created_at: string;
 }
 

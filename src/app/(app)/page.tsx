@@ -1,7 +1,7 @@
 'use client';
 
 import { usePulseData } from '@/hooks/usePulseData';
-import TeamCardGrid from '@/components/dashboard/TeamCardGrid';
+import OrgCanvas from '@/components/orgchart/OrgCanvas';
 import UpdateModal from '@/components/update/UpdateModal';
 import { Loader2 } from 'lucide-react';
 
@@ -32,11 +32,8 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* 팀 카드 그리드 — 이슈 제목만 표시 */}
-      <TeamCardGrid teams={teams} issues={issues} />
-
-      {/* Update Modal */}
+    <div className="space-y-4">
+      <OrgCanvas teams={teams} issues={issues} onPositionChange={refresh} />
       <UpdateModal teams={teams} reports={reports} users={users} onSuccess={refresh} />
     </div>
   );
