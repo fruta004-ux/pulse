@@ -296,6 +296,14 @@ export async function updateIssue(
   if (error) throw error;
 }
 
+export async function deleteIssue(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('issues')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
 // ── Decision Logs ─────────────────────────────────────────
 
 export async function insertDecisionLog(

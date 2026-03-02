@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { getTeamIssues } from '@/lib/statusCalc';
-import { createIssue, updateIssue } from '@/lib/queries';
+import { createIssue, updateIssue, deleteIssue } from '@/lib/queries';
 import type { DbIssue, DbUser, IssueImpact, IssueState } from '@/types/database';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Scale,
+  Trash2,
 } from 'lucide-react';
 
 interface Props {
@@ -139,6 +140,16 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
       console.error('[PULSE] update desc error', err);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async (issueId: string) => {
+    if (!confirm('이 이슈를 삭제하시겠습니까?')) return;
+    try {
+      await deleteIssue(issueId);
+      await onRefresh();
+    } catch (err) {
+      console.error('[PULSE] delete issue error', err);
     }
   };
 
@@ -496,6 +507,17 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                           <Pencil className="h-3 w-3 text-gray-300 mt-1 opacity-0 group-hover/dec:opacity-100 transition-opacity" />
                         </div>
                       )}
+                    </div>
+
+                    {/* Delete */}
+                    <div className="border-t border-gray-100 pt-3 flex justify-end">
+                      <button
+                        onClick={() => handleDelete(issue.id)}
+                        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-500 transition-colors duration-200"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        이슈 삭제
+                      </button>
                     </div>
                   </div>
                 )}
