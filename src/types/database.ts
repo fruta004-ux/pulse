@@ -62,6 +62,7 @@ export interface DbIssue {
   due_date: string | null;
   decision: string | null;
   decision_at: string | null;
+  images: string[];
   created_at: string;
   resolved_at: string | null;
 }

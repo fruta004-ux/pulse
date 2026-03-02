@@ -280,7 +280,7 @@ export async function createIssue(issue: {
 
 export async function updateIssue(
   id: string,
-  updates: Partial<Pick<DbIssue, 'title' | 'description' | 'impact' | 'state' | 'assignee_name' | 'due_date' | 'decision'>>
+  updates: Partial<Pick<DbIssue, 'title' | 'description' | 'impact' | 'state' | 'assignee_name' | 'due_date' | 'decision' | 'images'>>
 ): Promise<void> {
   const payload: Record<string, unknown> = { ...updates };
   if (updates.state === 'resolved') {
@@ -294,6 +294,22 @@ export async function updateIssue(
     .update(payload)
     .eq('id', id);
   if (error) throw error;
+}
+
+export async function uploadIssueImage(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() || 'png';
+  const fileName = `${crypto.randomUUID()}.${ext}`;
+  const path = `${fileName}`;
+
+  const { error } = await supabase.storage
+    .from('issue-images')
+    .upload(path, file, { contentType: file.type, upsert: false });
+  if (error) throw error;
+
+  const { data } = supabase.storage
+    .from('issue-images')
+    .getPublicUrl(path);
+  return data.publicUrl;
 }
 
 export async function deleteIssue(id: string): Promise<void> {

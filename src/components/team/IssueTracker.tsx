@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback, type ClipboardEvent } from 'react';
 import { getTeamIssues } from '@/lib/statusCalc';
-import { createIssue, updateIssue, deleteIssue } from '@/lib/queries';
+import { createIssue, updateIssue, deleteIssue, uploadIssueImage } from '@/lib/queries';
 import type { DbIssue, DbUser, IssueImpact, IssueState } from '@/types/database';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,8 @@ import {
   CheckCircle2,
   Scale,
   Trash2,
+  ImagePlus,
+  Loader2,
 } from 'lucide-react';
 
 interface Props {
@@ -71,6 +73,60 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
   const [editDecision, setEditDecision] = useState('');
 
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [imageTargetIssueId, setImageTargetIssueId] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  const handleUploadImages = useCallback(async (issueId: string, files: File[]) => {
+    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+
+    setUploading(issueId);
+    try {
+      const urls: string[] = [];
+      for (const file of imageFiles) {
+        const url = await uploadIssueImage(file);
+        urls.push(url);
+      }
+      const issue = teamIssues.find((i) => i.id === issueId);
+      const existing = issue?.images ?? [];
+      await updateIssue(issueId, { images: [...existing, ...urls] });
+      await onRefresh();
+    } catch (err) {
+      console.error('[PULSE] upload image error', err);
+    } finally {
+      setUploading(null);
+    }
+  }, [teamIssues, onRefresh]);
+
+  const handlePaste = useCallback((issueId: string, e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      handleUploadImages(issueId, imageFiles);
+    }
+  }, [handleUploadImages]);
+
+  const handleRemoveImage = async (issueId: string, imageUrl: string) => {
+    const issue = teamIssues.find((i) => i.id === issueId);
+    if (!issue) return;
+    const updated = (issue.images ?? []).filter((url) => url !== imageUrl);
+    try {
+      await updateIssue(issueId, { images: updated });
+      await onRefresh();
+    } catch (err) {
+      console.error('[PULSE] remove image error', err);
+    }
+  };
 
   const handleCreate = async () => {
     if (!newTitle.trim()) return;
@@ -176,6 +232,39 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
 
   return (
     <div className="rounded-2xl border-2 border-blue-200 bg-white shadow-lg overflow-hidden">
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (imageTargetIssueId && e.target.files) {
+            handleUploadImages(imageTargetIssueId, Array.from(e.target.files));
+          }
+          e.target.value = '';
+        }}
+      />
+
+      {/* Image preview modal */}
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setPreviewImage(null)}
+        >
+          <div className="relative max-w-[90vw] max-h-[90vh]">
+            <img src={previewImage} alt="Preview" className="max-w-full max-h-[90vh] rounded-lg shadow-2xl" />
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-3 -right-3 bg-white rounded-full p-1 shadow-lg hover:bg-gray-100 transition-colors"
+            >
+              <X className="h-5 w-5 text-gray-600" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2.5">
@@ -198,9 +287,7 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
           onClick={() => setTab('active')}
           className={cn(
             'flex-1 py-2.5 text-sm font-medium text-center transition-all duration-200 relative',
-            tab === 'active'
-              ? 'text-blue-700'
-              : 'text-gray-400 hover:text-gray-600'
+            tab === 'active' ? 'text-blue-700' : 'text-gray-400 hover:text-gray-600'
           )}
         >
           <span className="flex items-center justify-center gap-1.5">
@@ -215,17 +302,13 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
               </span>
             )}
           </span>
-          {tab === 'active' && (
-            <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-blue-600 rounded-full" />
-          )}
+          {tab === 'active' && <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-blue-600 rounded-full" />}
         </button>
         <button
           onClick={() => setTab('resolved')}
           className={cn(
             'flex-1 py-2.5 text-sm font-medium text-center transition-all duration-200 relative',
-            tab === 'resolved'
-              ? 'text-green-700'
-              : 'text-gray-400 hover:text-gray-600'
+            tab === 'resolved' ? 'text-green-700' : 'text-gray-400 hover:text-gray-600'
           )}
         >
           <span className="flex items-center justify-center gap-1.5">
@@ -240,9 +323,7 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
               </span>
             )}
           </span>
-          {tab === 'resolved' && (
-            <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-green-600 rounded-full" />
-          )}
+          {tab === 'resolved' && <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-green-600 rounded-full" />}
         </button>
       </div>
 
@@ -306,9 +387,15 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
             const isEditingTitle = editTitleId === issue.id;
             const isEditingDesc = editDescId === issue.id;
             const isEditingDecision = editDecisionId === issue.id;
+            const isUploading = uploading === issue.id;
+            const issueImages = issue.images ?? [];
 
             return (
-              <div key={issue.id} className="hover:bg-gray-50/50 transition-colors duration-200">
+              <div
+                key={issue.id}
+                className="hover:bg-gray-50/50 transition-colors duration-200"
+                onPaste={(e) => { if (isExpanded) handlePaste(issue.id, e); }}
+              >
                 {/* Row Header */}
                 <div className="flex items-center gap-3 px-5 py-3">
                   <button
@@ -337,11 +424,7 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                             if (e.key === 'Escape') setEditTitleId(null);
                           }}
                         />
-                        <button
-                          onClick={() => saveTitle(issue.id)}
-                          disabled={saving || !editTitle.trim()}
-                          className="text-blue-600 hover:text-blue-700 shrink-0"
-                        >
+                        <button onClick={() => saveTitle(issue.id)} disabled={saving || !editTitle.trim()} className="text-blue-600 hover:text-blue-700 shrink-0">
                           <Check className="h-4 w-4" />
                         </button>
                         <button onClick={() => setEditTitleId(null)} className="text-gray-400 hover:text-gray-600 shrink-0">
@@ -360,8 +443,15 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                         )}>
                           {issue.title}
                         </p>
-                        {!isExpanded && issue.description && (
-                          <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">{issue.description}</p>
+                        {!isExpanded && (
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {issue.description && <p className="text-xs text-gray-400 line-clamp-1">{issue.description}</p>}
+                            {issueImages.length > 0 && (
+                              <span className="text-xs text-gray-400 flex items-center gap-0.5 shrink-0">
+                                <ImagePlus className="h-3 w-3" /> {issueImages.length}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
@@ -417,15 +507,8 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                           }}
                         />
                         <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg" onClick={() => setEditDescId(null)}>
-                            취소
-                          </Button>
-                          <Button
-                            size="sm"
-                            className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg"
-                            disabled={saving}
-                            onClick={() => saveDesc(issue.id)}
-                          >
+                          <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg" onClick={() => setEditDescId(null)}>취소</Button>
+                          <Button size="sm" className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg" disabled={saving} onClick={() => saveDesc(issue.id)}>
                             <Check className="h-3 w-3" /> {saving ? '저장 중...' : '저장'}
                           </Button>
                         </div>
@@ -437,15 +520,58 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                       >
                         <p className="text-xs font-semibold text-gray-500 mb-1">내용</p>
                         {issue.description ? (
-                          <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
-                            {issue.description}
-                          </p>
+                          <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{issue.description}</p>
                         ) : (
                           <p className="text-sm text-gray-400 italic">클릭하여 내용을 추가하세요...</p>
                         )}
                         <Pencil className="h-3 w-3 text-gray-300 mt-1 opacity-0 group-hover/desc:opacity-100 transition-opacity" />
                       </div>
                     )}
+
+                    {/* Images */}
+                    <div className="border-t border-gray-100 pt-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <ImagePlus className="h-3.5 w-3.5 text-teal-500" />
+                          <span className="text-xs font-semibold text-teal-600">
+                            첨부 이미지 {issueImages.length > 0 && `(${issueImages.length})`}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => { setImageTargetIssueId(issue.id); fileInputRef.current?.click(); }}
+                          disabled={isUploading}
+                          className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 transition-colors"
+                        >
+                          {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                          {isUploading ? '업로드 중...' : '이미지 추가'}
+                        </button>
+                      </div>
+
+                      {issueImages.length > 0 && (
+                        <div className="grid grid-cols-3 gap-2 mb-2">
+                          {issueImages.map((url, idx) => (
+                            <div key={idx} className="relative group/img rounded-lg overflow-hidden border border-gray-200 aspect-video bg-gray-50">
+                              <img
+                                src={url}
+                                alt={`첨부 ${idx + 1}`}
+                                className="w-full h-full object-cover cursor-pointer"
+                                onClick={() => setPreviewImage(url)}
+                              />
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleRemoveImage(issue.id, url); }}
+                                className="absolute top-1 right-1 bg-black/60 rounded-full p-0.5 opacity-0 group-hover/img:opacity-100 transition-opacity"
+                              >
+                                <X className="h-3 w-3 text-white" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-[10px] text-gray-400">
+                        Ctrl+V로 클립보드 이미지를 바로 붙여넣을 수 있습니다
+                      </p>
+                    </div>
 
                     {/* Decision */}
                     <div className="border-t border-gray-100 pt-3">
@@ -468,15 +594,8 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                             }}
                           />
                           <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg" onClick={() => setEditDecisionId(null)}>
-                              취소
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="h-7 text-xs gap-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
-                              disabled={saving}
-                              onClick={() => saveDecision(issue.id)}
-                            >
+                            <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg" onClick={() => setEditDecisionId(null)}>취소</Button>
+                            <Button size="sm" className="h-7 text-xs gap-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg" disabled={saving} onClick={() => saveDecision(issue.id)}>
                               <Check className="h-3 w-3" /> {saving ? '저장 중...' : '저장'}
                             </Button>
                           </div>
@@ -492,9 +611,7 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                           </div>
                           {issue.decision ? (
                             <div className="rounded-lg bg-purple-50 border border-purple-100 p-2.5">
-                              <p className="text-sm text-purple-800 whitespace-pre-wrap leading-relaxed">
-                                {issue.decision}
-                              </p>
+                              <p className="text-sm text-purple-800 whitespace-pre-wrap leading-relaxed">{issue.decision}</p>
                               {issue.decision_at && (
                                 <p className="text-xs text-purple-400 mt-1">
                                   {new Date(issue.decision_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 결정
