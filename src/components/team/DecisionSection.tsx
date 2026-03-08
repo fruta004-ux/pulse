@@ -132,7 +132,7 @@ export default function DecisionSection({ decisions, teamId, onRefresh }: Props)
   const pendingCount = teamDecisions.filter((d) => d.state === 'pending').length;
 
   return (
-    <div className="rounded-2xl border-2 border-blue-200 bg-white shadow-lg overflow-hidden">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2.5">

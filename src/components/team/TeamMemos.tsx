@@ -103,11 +103,11 @@ export default function TeamMemos({ teamId }: Props) {
   };
 
   return (
-    <div className="rounded-2xl border-2 border-blue-200 bg-white shadow-lg overflow-hidden">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2.5 px-5 py-4 border-b border-gray-100">
         <StickyNote className="h-5 w-5 text-blue-600" />
-        <h3 className="font-bold text-lg text-gray-900">메모</h3>
+        <h3 className="font-bold text-xl text-gray-900">메모</h3>
         <span className="text-sm text-gray-400">{memos.length}개</span>
       </div>
 
@@ -116,7 +116,7 @@ export default function TeamMemos({ teamId }: Props) {
         <div className="flex gap-2">
           <Textarea
             placeholder="팀 현황, 공유사항, 특이사항 등을 자유롭게 기록하세요..."
-            className="flex-1 min-h-[60px] text-sm resize-none bg-white border-gray-200 focus:border-blue-400 focus:ring-blue-400 rounded-xl"
+            className="flex-1 min-h-[60px] text-base resize-none bg-white border-gray-200 focus:border-blue-400 focus:ring-blue-400 rounded-xl"
             rows={2}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -200,7 +200,7 @@ export default function TeamMemos({ teamId }: Props) {
                       onClick={() => startEdit(memo)}
                       className="cursor-pointer rounded-xl hover:bg-gray-100/50 p-1 -m-1 transition-all duration-200"
                     >
-                      <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
+                      <p className="text-base text-gray-700 whitespace-pre-wrap leading-relaxed">{memo.content}</p>
                     </div>
                     <div className="flex items-center justify-end mt-2">
                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

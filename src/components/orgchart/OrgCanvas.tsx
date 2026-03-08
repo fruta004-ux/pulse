@@ -8,6 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from 'react';
+import { useRouter } from 'next/navigation';
 import type { DbTeam, DbIssue } from '@/types/database';
 import { updateTeamPosition } from '@/lib/queries';
 import OrgNodeCard from './OrgNodeCard';
@@ -81,6 +82,7 @@ function autoLayout(teams: DbTeam[]): Map<string, { x: number; y: number }> {
 }
 
 export default function OrgCanvas({ teams, issues }: Props) {
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(
     () => autoLayout(teams)
@@ -90,6 +92,7 @@ export default function OrgCanvas({ teams, issues }: Props) {
   const [dragging, setDragging] = useState<DragState | null>(null);
   const [panning, setPanning] = useState<{ startX: number; startY: number; camX: number; camY: number } | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didDragRef = useRef(false);
 
   const teamsRef = useRef(teams);
   useEffect(() => {
@@ -128,12 +131,13 @@ export default function OrgCanvas({ teams, issues }: Props) {
     []
   );
 
-  const handleNodePointerDown = useCallback(
+  const handleGripPointerDown = useCallback(
     (teamId: string, e: ReactPointerEvent) => {
       e.stopPropagation();
       e.preventDefault();
       const pos = positions.get(teamId);
       if (!pos) return;
+      didDragRef.current = false;
       setDragging({
         teamId,
         startX: e.clientX,
@@ -151,6 +155,9 @@ export default function OrgCanvas({ teams, issues }: Props) {
       if (dragging) {
         const dx = (e.clientX - dragging.startX) / zoom;
         const dy = (e.clientY - dragging.startY) / zoom;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+          didDragRef.current = true;
+        }
         const newX = dragging.origPosX + dx;
         const newY = dragging.origPosY + dy;
         setPositions((prev) => {
@@ -242,6 +249,12 @@ export default function OrgCanvas({ teams, issues }: Props) {
     }
   });
 
+  const handleCardClick = useCallback((teamId: string) => {
+    if (!didDragRef.current) {
+      router.push(`/teams/${teamId}`);
+    }
+  }, [router]);
+
   return (
     <div className="relative w-full h-[calc(100vh-160px)] rounded-2xl border-2 border-gray-200 bg-gray-50 overflow-hidden">
       {/* Toolbar */}
@@ -275,14 +288,14 @@ export default function OrgCanvas({ teams, issues }: Props) {
 
       {/* Hint */}
       <div className="absolute bottom-3 left-3 z-20 text-xs text-gray-400">
-        드래그로 팀 이동 · 빈 곳 드래그로 화면 이동 · 스크롤로 확대/축소
+        ⋮⋮ 아이콘 드래그로 팀 이동 · 카드 클릭으로 상세 보기 · 빈 곳 드래그로 화면 이동 · 스크롤로 확대/축소
       </div>
 
       {/* Canvas */}
       <div
         ref={containerRef}
         className="w-full h-full"
-        style={{ cursor: panning ? 'grabbing' : dragging ? 'default' : 'grab' }}
+        style={{ cursor: panning ? 'grabbing' : 'grab' }}
         onPointerDown={handleCanvasPointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -335,12 +348,13 @@ export default function OrgCanvas({ teams, issues }: Props) {
                   transform: `translate(${pos.x}px, ${pos.y}px)`,
                   zIndex: dragging?.teamId === team.id ? 50 : 1,
                 }}
-                onPointerDown={(e) => handleNodePointerDown(team.id, e)}
               >
                 <OrgNodeCard
                   team={team}
                   issues={issues}
                   isDragging={dragging?.teamId === team.id}
+                  onGripPointerDown={(e) => handleGripPointerDown(team.id, e)}
+                  onClick={() => handleCardClick(team.id)}
                 />
               </div>
             );

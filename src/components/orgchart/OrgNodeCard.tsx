@@ -1,20 +1,22 @@
 'use client';
 
-import Link from 'next/link';
 import { getTeamIssues } from '@/lib/statusCalc';
 import type { DbIssue, DbTeam } from '@/types/database';
 import { cn } from '@/lib/utils';
 import { AlertCircle, GripVertical, Users } from 'lucide-react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 
 interface Props {
   team: DbTeam;
   issues: DbIssue[];
   isDragging?: boolean;
+  onGripPointerDown?: (e: ReactPointerEvent) => void;
+  onClick?: () => void;
 }
 
-export default function OrgNodeCard({ team, issues, isDragging }: Props) {
+export default function OrgNodeCard({ team, issues, isDragging, onGripPointerDown, onClick }: Props) {
   const teamIssues = getTeamIssues(issues, team.id);
-  const openIssues = teamIssues.filter((i) => i.state !== 'resolved');
+  const openIssues = teamIssues.filter((i) => i.state === 'open');
   const highIssues = openIssues.filter((i) => i.impact === 'high');
 
   return (
@@ -23,19 +25,26 @@ export default function OrgNodeCard({ team, issues, isDragging }: Props) {
         'w-[220px] bg-white rounded-xl border-2 shadow-md select-none transition-shadow',
         isDragging
           ? 'border-blue-400 shadow-xl shadow-blue-200/50 scale-[1.04]'
-          : 'border-gray-200 hover:border-blue-300',
+          : 'border-gray-200 hover:border-blue-300 cursor-pointer',
         highIssues.length > 0 && !isDragging && 'border-red-200'
       )}
+      onClick={onClick}
     >
       {/* Drag handle + header */}
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-100">
-        <GripVertical className="h-4 w-4 text-gray-300 shrink-0 cursor-grab" />
+        <div
+          className="shrink-0 p-0.5 rounded hover:bg-gray-100 transition-colors cursor-grab active:cursor-grabbing"
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            onGripPointerDown?.(e);
+          }}
+        >
+          <GripVertical className="h-4 w-4 text-gray-300" />
+        </div>
         <div className="flex-1 min-w-0">
-          <Link href={`/teams/${team.id}`} className="block" onClick={(e) => e.stopPropagation()}>
-            <h3 className="font-bold text-sm text-gray-900 truncate hover:text-blue-600 transition-colors">
-              {team.name}
-            </h3>
-          </Link>
+          <h3 className="font-bold text-sm text-gray-900 truncate">
+            {team.name}
+          </h3>
           {team.leader_name && (
             <p className="text-xs text-gray-500 truncate">{team.leader_name}</p>
           )}

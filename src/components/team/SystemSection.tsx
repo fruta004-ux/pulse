@@ -2,33 +2,30 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-  fetchTeamDirections,
-  createTeamDirection,
-  updateTeamDirection,
-  deleteTeamDirection,
+  fetchTeamSystems,
+  createTeamSystem,
+  updateTeamSystem,
+  deleteTeamSystem,
 } from '@/lib/queries';
-import type { DbTeamDirection } from '@/types/database';
-import { cn } from '@/lib/utils';
+import type { DbTeamSystem } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Compass,
+  Monitor,
   Plus,
   Pencil,
   Trash2,
   Check,
   X,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 
 interface Props {
   teamId: string;
 }
 
-export default function DirectionSection({ teamId }: Props) {
-  const [directions, setDirections] = useState<DbTeamDirection[]>([]);
+export default function SystemSection({ teamId }: Props) {
+  const [systems, setSystems] = useState<DbTeamSystem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [showCreate, setShowCreate] = useState(false);
@@ -44,10 +41,10 @@ export default function DirectionSection({ teamId }: Props) {
 
   const load = useCallback(async () => {
     try {
-      const data = await fetchTeamDirections(teamId);
-      setDirections(data);
+      const data = await fetchTeamSystems(teamId);
+      setSystems(data);
     } catch (err) {
-      console.error('[PULSE] fetch directions error', err);
+      console.error('[PULSE] fetch systems error', err);
     } finally {
       setLoading(false);
     }
@@ -61,23 +58,23 @@ export default function DirectionSection({ teamId }: Props) {
     if (!newTitle.trim()) return;
     setCreating(true);
     try {
-      await createTeamDirection(teamId, newTitle.trim(), newContent.trim());
+      await createTeamSystem(teamId, newTitle.trim(), newContent.trim());
       setNewTitle('');
       setNewContent('');
       setShowCreate(false);
       await load();
     } catch (err) {
-      console.error('[PULSE] create direction error', err);
+      console.error('[PULSE] create system error', err);
     } finally {
       setCreating(false);
     }
   };
 
-  const startEdit = (d: DbTeamDirection) => {
-    setEditId(d.id);
-    setEditTitle(d.title);
-    setEditContent(d.content);
-    setExpandedId(d.id);
+  const startEdit = (s: DbTeamSystem) => {
+    setEditId(s.id);
+    setEditTitle(s.title);
+    setEditContent(s.content);
+    setExpandedId(s.id);
   };
 
   const cancelEdit = () => {
@@ -90,26 +87,26 @@ export default function DirectionSection({ teamId }: Props) {
     if (!editTitle.trim()) return;
     setSaving(true);
     try {
-      await updateTeamDirection(id, {
+      await updateTeamSystem(id, {
         title: editTitle.trim(),
         content: editContent.trim(),
       });
       setEditId(null);
       await load();
     } catch (err) {
-      console.error('[PULSE] update direction error', err);
+      console.error('[PULSE] update system error', err);
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('이 방향성을 삭제하시겠습니까?')) return;
+    if (!confirm('이 시스템을 삭제하시겠습니까?')) return;
     try {
-      await deleteTeamDirection(id);
+      await deleteTeamSystem(id);
       await load();
     } catch (err) {
-      console.error('[PULSE] delete direction error', err);
+      console.error('[PULSE] delete system error', err);
     }
   };
 
@@ -117,38 +114,36 @@ export default function DirectionSection({ teamId }: Props) {
 
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <div className="flex items-center gap-2">
-          <Compass className="h-4 w-4 text-indigo-600" />
-          <h3 className="font-bold text-base text-gray-900">방향성</h3>
-          {directions.length > 0 && (
-            <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">
-              {directions.length}
+          <Monitor className="h-4 w-4 text-teal-600" />
+          <h3 className="font-bold text-base text-gray-900">시스템</h3>
+          {systems.length > 0 && (
+            <span className="rounded-full bg-teal-100 px-1.5 py-0.5 text-[10px] font-semibold text-teal-700">
+              {systems.length}
             </span>
           )}
         </div>
         <button
           onClick={() => setShowCreate(!showCreate)}
-          className="p-1 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all duration-200"
+          className="p-1 rounded-lg text-gray-400 hover:text-teal-600 hover:bg-teal-50 transition-all duration-200"
         >
           <Plus className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Create Form */}
       {showCreate && (
-        <div className="border-b border-indigo-100 bg-indigo-50/30 px-3 py-3 space-y-2">
+        <div className="border-b border-teal-100 bg-teal-50/30 px-3 py-3 space-y-2">
           <Input
-            className="h-9 text-sm bg-white border-gray-200 focus:border-indigo-400 focus:ring-indigo-400 rounded-lg"
-            placeholder="제목 *"
+            className="h-9 text-sm bg-white border-gray-200 focus:border-teal-400 focus:ring-teal-400 rounded-lg"
+            placeholder="시스템명 *"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             autoFocus
           />
           <Textarea
-            className="bg-white border-gray-200 focus:border-indigo-400 focus:ring-indigo-400 rounded-lg resize-none text-xs"
-            placeholder="상세 내용"
+            className="bg-white border-gray-200 focus:border-teal-400 focus:ring-teal-400 rounded-lg resize-none text-xs"
+            placeholder="상세 내용 (URL, 설명 등)"
             rows={2}
             value={newContent}
             onChange={(e) => setNewContent(e.target.value)}
@@ -161,7 +156,7 @@ export default function DirectionSection({ teamId }: Props) {
               size="sm"
               disabled={!newTitle.trim() || creating}
               onClick={handleCreate}
-              className="h-7 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg"
+              className="h-7 text-xs bg-teal-600 hover:bg-teal-700 text-white rounded-lg"
             >
               {creating ? '저장 중...' : '추가'}
             </Button>
@@ -169,40 +164,38 @@ export default function DirectionSection({ teamId }: Props) {
         </div>
       )}
 
-      {/* List */}
       <div className="divide-y divide-gray-100">
-        {directions.length === 0 && !showCreate ? (
+        {systems.length === 0 && !showCreate ? (
           <div className="px-4 py-6 text-center text-xs text-gray-400">
-            등록된 방향성이 없습니다
+            등록된 시스템이 없습니다
           </div>
         ) : (
-          directions.map((d) => {
-            const isExpanded = expandedId === d.id;
-            const isEditing = editId === d.id;
+          systems.map((s) => {
+            const isExpanded = expandedId === s.id;
+            const isEditing = editId === s.id;
 
             return (
-              <div key={d.id} className="group hover:bg-gray-50/50 transition-colors duration-200">
-                {/* Row */}
+              <div key={s.id} className="group hover:bg-gray-50/50 transition-colors duration-200">
                 <div
                   className="flex items-start gap-2 px-3 py-2.5 cursor-pointer"
-                  onClick={() => setExpandedId(isExpanded ? null : d.id)}
+                  onClick={() => setExpandedId(isExpanded ? null : s.id)}
                 >
-                  <div className="h-2 w-2 rounded-full bg-indigo-400 shrink-0 mt-1.5" />
+                  <div className="h-2 w-2 rounded-full bg-teal-400 shrink-0 mt-1.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-800 leading-snug">{d.title}</p>
-                    {!isExpanded && d.content && (
-                      <p className="text-xs text-gray-400 line-clamp-2 mt-0.5 leading-relaxed">{d.content}</p>
+                    <p className="text-sm font-semibold text-gray-800 leading-snug">{s.title}</p>
+                    {!isExpanded && s.content && (
+                      <p className="text-xs text-gray-400 line-clamp-2 mt-0.5 leading-relaxed">{s.content}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
-                      onClick={(e) => { e.stopPropagation(); startEdit(d); }}
-                      className="rounded p-0.5 text-gray-300 hover:text-indigo-600 hover:bg-indigo-50 transition-all"
+                      onClick={(e) => { e.stopPropagation(); startEdit(s); }}
+                      className="rounded p-0.5 text-gray-300 hover:text-teal-600 hover:bg-teal-50 transition-all"
                     >
                       <Pencil className="h-3 w-3" />
                     </button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(d.id); }}
+                      onClick={(e) => { e.stopPropagation(); handleDelete(s.id); }}
                       className="rounded p-0.5 text-gray-300 hover:text-red-500 hover:bg-red-50 transition-all"
                     >
                       <Trash2 className="h-3 w-3" />
@@ -210,25 +203,24 @@ export default function DirectionSection({ teamId }: Props) {
                   </div>
                 </div>
 
-                {/* Expanded */}
                 {isExpanded && (
                   <div className="border-t border-gray-100 mx-3 py-2.5 pl-4">
                     {isEditing ? (
                       <div className="space-y-2">
                         <Input
-                          className="h-8 text-xs font-medium bg-white border-gray-200 focus:border-indigo-400 rounded-lg"
+                          className="h-8 text-xs font-medium bg-white border-gray-200 focus:border-teal-400 rounded-lg"
                           value={editTitle}
                           onChange={(e) => setEditTitle(e.target.value)}
                           autoFocus
                         />
                         <Textarea
-                          className="text-xs resize-none bg-white border-gray-200 focus:border-indigo-400 rounded-lg"
+                          className="text-xs resize-none bg-white border-gray-200 focus:border-teal-400 rounded-lg"
                           rows={3}
                           value={editContent}
                           onChange={(e) => setEditContent(e.target.value)}
                           placeholder="상세 내용"
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveEdit(d.id); }
+                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); saveEdit(s.id); }
                             if (e.key === 'Escape') cancelEdit();
                           }}
                         />
@@ -237,9 +229,9 @@ export default function DirectionSection({ teamId }: Props) {
                             <X className="h-3.5 w-3.5" />
                           </button>
                           <button
-                            onClick={() => saveEdit(d.id)}
+                            onClick={() => saveEdit(s.id)}
                             disabled={saving || !editTitle.trim()}
-                            className="text-indigo-600 hover:text-indigo-700 p-0.5 rounded hover:bg-indigo-50 transition-all"
+                            className="text-teal-600 hover:text-teal-700 p-0.5 rounded hover:bg-teal-50 transition-all"
                           >
                             <Check className="h-3.5 w-3.5" />
                           </button>
@@ -247,18 +239,18 @@ export default function DirectionSection({ teamId }: Props) {
                       </div>
                     ) : (
                       <div
-                        onClick={() => startEdit(d)}
-                        className="cursor-pointer rounded-lg hover:bg-indigo-50/50 p-2 -m-2 transition-all duration-200 group/dir"
+                        onClick={() => startEdit(s)}
+                        className="cursor-pointer rounded-lg hover:bg-teal-50/50 p-2 -m-2 transition-all duration-200"
                       >
-                        {d.content ? (
+                        {s.content ? (
                           <p className="text-xs text-gray-600 whitespace-pre-wrap leading-relaxed">
-                            {d.content}
+                            {s.content}
                           </p>
                         ) : (
                           <p className="text-xs text-gray-400 italic">클릭하여 내용 추가...</p>
                         )}
                         <span className="text-[10px] text-gray-400 mt-1 block">
-                          {new Date(d.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
+                          {new Date(s.created_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
                         </span>
                       </div>
                     )}

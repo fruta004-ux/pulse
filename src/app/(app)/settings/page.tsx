@@ -105,7 +105,7 @@ export default function SettingsPage() {
       </div>
 
       {/* 팀 관리 */}
-      <div className="rounded-2xl border-2 border-blue-200 bg-white shadow-lg overflow-hidden">
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2.5">
             <Users className="h-5 w-5 text-blue-600" />

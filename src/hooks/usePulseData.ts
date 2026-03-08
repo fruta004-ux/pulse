@@ -40,9 +40,9 @@ export function usePulseData(): PulseData {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const [u, t, r, i, a, d] = await Promise.all([
         fetchUsers(),
@@ -75,7 +75,7 @@ export function usePulseData(): PulseData {
       }
       setError(parts.join('\n'));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -83,5 +83,6 @@ export function usePulseData(): PulseData {
     load();
   }, [load]);
 
-  return { users, teams, reports, issues, actions, decisions, loading, error, refresh: load };
+  const refresh = useCallback(() => load(true), [load]);
+  return { users, teams, reports, issues, actions, decisions, loading, error, refresh };
 }

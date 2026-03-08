@@ -9,6 +9,7 @@ import type {
   DbTeamMemo,
   DbDecisionLog,
   DbTeamDirection,
+  DbTeamSystem,
 } from '@/types/database';
 
 // ── Fetch helpers ─────────────────────────────────────────
@@ -261,6 +262,7 @@ export async function createIssue(issue: {
   impact?: string;
   assignee_name?: string;
   due_date?: string | null;
+  category?: string;
 }): Promise<DbIssue> {
   const { data, error } = await supabase
     .from('issues')
@@ -271,6 +273,7 @@ export async function createIssue(issue: {
       impact: issue.impact ?? 'medium',
       assignee_name: issue.assignee_name ?? '',
       due_date: issue.due_date ?? null,
+      category: issue.category ?? 'briefing',
     } as Record<string, unknown>)
     .select()
     .single();
@@ -280,7 +283,7 @@ export async function createIssue(issue: {
 
 export async function updateIssue(
   id: string,
-  updates: Partial<Pick<DbIssue, 'title' | 'description' | 'impact' | 'state' | 'assignee_name' | 'due_date' | 'decision' | 'images'>>
+  updates: Partial<Pick<DbIssue, 'title' | 'description' | 'impact' | 'state' | 'assignee_name' | 'due_date' | 'decision' | 'images' | 'category'>>
 ): Promise<void> {
   const payload: Record<string, unknown> = { ...updates };
   if (updates.state === 'resolved') {
@@ -293,7 +296,10 @@ export async function updateIssue(
     .from('issues')
     .update(payload)
     .eq('id', id);
-  if (error) throw error;
+  if (error) {
+    console.error('[PULSE] Supabase update error:', error.message, error.details, error.hint);
+    throw error;
+  }
 }
 
 export async function uploadIssueImage(file: File): Promise<string> {
@@ -426,6 +432,45 @@ export async function updateTeamDirection(id: string, updates: Partial<Pick<DbTe
 export async function deleteTeamDirection(id: string): Promise<void> {
   const { error } = await supabase
     .from('team_directions')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
+// ── Team Systems ────────────────────────────────────────
+
+export async function fetchTeamSystems(teamId: string): Promise<DbTeamSystem[]> {
+  const { data, error } = await supabase
+    .from('team_systems')
+    .select('*')
+    .eq('team_id', teamId)
+    .order('sort_order')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as DbTeamSystem[];
+}
+
+export async function createTeamSystem(teamId: string, title: string, content: string): Promise<DbTeamSystem> {
+  const { data, error } = await supabase
+    .from('team_systems')
+    .insert({ team_id: teamId, title, content } as Record<string, unknown>)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as DbTeamSystem;
+}
+
+export async function updateTeamSystem(id: string, updates: Partial<Pick<DbTeamSystem, 'title' | 'content'>>): Promise<void> {
+  const { error } = await supabase
+    .from('team_systems')
+    .update(updates as Record<string, unknown>)
+    .eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteTeamSystem(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('team_systems')
     .delete()
     .eq('id', id);
   if (error) throw error;

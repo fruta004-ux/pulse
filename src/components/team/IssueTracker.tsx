@@ -1,13 +1,17 @@
 'use client';
 
 import { useState, useRef, useCallback, type ClipboardEvent } from 'react';
+import { format } from 'date-fns';
+import { ko } from 'date-fns/locale';
 import { getTeamIssues } from '@/lib/statusCalc';
 import { createIssue, updateIssue, deleteIssue, uploadIssueImage } from '@/lib/queries';
-import type { DbIssue, DbUser, IssueImpact, IssueState } from '@/types/database';
+import type { DbIssue, DbUser, IssueImpact, IssueState, IssueCategory } from '@/types/database';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
 import {
   Plus,
   ChevronDown,
@@ -21,6 +25,15 @@ import {
   Trash2,
   ImagePlus,
   Loader2,
+  Megaphone,
+  CalendarIcon,
+  Circle,
+  Clock,
+  Play,
+  Pause,
+  ArrowUp,
+  ArrowRight,
+  ArrowDown,
 } from 'lucide-react';
 
 interface Props {
@@ -30,35 +43,114 @@ interface Props {
   onRefresh: () => Promise<void>;
 }
 
-const impactConfig: Record<IssueImpact, { label: string; color: string }> = {
-  high: { label: '높음', color: 'bg-red-50 text-red-600 border border-red-100' },
-  medium: { label: '중간', color: 'bg-amber-50 text-amber-600 border border-amber-100' },
-  low: { label: '낮음', color: 'bg-gray-50 text-gray-500 border border-gray-100' },
+const impactConfig: Record<IssueImpact, { label: string; color: string; bgColor: string; iconColor: string; order: number; icon: React.ReactNode }> = {
+  high: { label: '높음', color: 'bg-red-50 text-red-600 border border-red-100', bgColor: 'bg-red-500', iconColor: 'text-red-500', order: 0, icon: <ArrowUp className="h-3 w-3" /> },
+  medium: { label: '중간', color: 'bg-amber-50 text-amber-600 border border-amber-100', bgColor: 'bg-amber-500', iconColor: 'text-amber-500', order: 1, icon: <ArrowRight className="h-3 w-3" /> },
+  low: { label: '낮음', color: 'bg-gray-50 text-gray-500 border border-gray-100', bgColor: 'bg-gray-400', iconColor: 'text-gray-400', order: 2, icon: <ArrowDown className="h-3 w-3" /> },
 };
 
-const stateConfig: Record<IssueState, { label: string; color: string }> = {
-  open: { label: '열림', color: 'bg-blue-50 text-blue-600' },
-  in_progress: { label: '진행중', color: 'bg-blue-50 text-blue-700' },
-  resolved: { label: '해결', color: 'bg-green-50 text-green-600' },
+const stateConfig: Record<IssueState, { label: string; color: string; bgColor: string; icon: React.ReactNode }> = {
+  open: { label: '상태', color: 'bg-slate-100 text-slate-600', bgColor: 'bg-slate-500', icon: <Circle className="h-3.5 w-3.5" /> },
+  waiting: { label: '대기', color: 'bg-orange-50 text-orange-600', bgColor: 'bg-orange-500', icon: <Pause className="h-3.5 w-3.5" /> },
+  in_progress: { label: '진행중', color: 'bg-blue-50 text-blue-600', bgColor: 'bg-blue-500', icon: <Play className="h-3.5 w-3.5" /> },
+  resolved: { label: '완료', color: 'bg-green-50 text-green-600', bgColor: 'bg-green-500', icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
 };
 
-const STATE_OPTIONS: IssueState[] = ['open', 'in_progress', 'resolved'];
+const STATE_CHANGE_OPTIONS: IssueState[] = ['waiting', 'in_progress', 'resolved'];
+const IMPACT_OPTIONS: IssueImpact[] = ['high', 'medium', 'low'];
 
-type TabType = 'active' | 'resolved';
+const categoryConfig: Record<IssueCategory, { label: string; color: string; icon: React.ReactNode }> = {
+  briefing: { label: '브리핑', color: 'bg-blue-50 text-blue-600', icon: <Megaphone className="h-3 w-3" /> },
+  decision: { label: '의사결정', color: 'bg-purple-50 text-purple-600', icon: <Scale className="h-3 w-3" /> },
+};
+const CATEGORY_OPTIONS: IssueCategory[] = ['briefing', 'decision'];
+
+function getImpactConfig(impact: IssueImpact | null | undefined) {
+  return impactConfig[impact ?? 'medium'] ?? impactConfig.medium;
+}
+function getStateConfig(state: IssueState | null | undefined) {
+  return stateConfig[state ?? 'open'] ?? stateConfig.open;
+}
+function getCategoryConfig(category: IssueCategory | null | undefined) {
+  return categoryConfig[category ?? 'briefing'] ?? categoryConfig.briefing;
+}
+
+type TabType = 'briefing' | 'decision' | 'waiting' | 'in_progress' | 'resolved';
+
+const tabConfig: Record<TabType, { label: string; icon: React.ReactNode; activeColor: string; barColor: string; countColor: string; countActiveColor: string }> = {
+  briefing: {
+    label: '브리핑',
+    icon: <Megaphone className="h-3.5 w-3.5" />,
+    activeColor: 'text-blue-700',
+    barColor: 'bg-blue-600',
+    countColor: 'bg-gray-100 text-gray-500',
+    countActiveColor: 'bg-blue-100 text-blue-700',
+  },
+  decision: {
+    label: '의사결정',
+    icon: <Scale className="h-3.5 w-3.5" />,
+    activeColor: 'text-purple-700',
+    barColor: 'bg-purple-600',
+    countColor: 'bg-gray-100 text-gray-500',
+    countActiveColor: 'bg-purple-100 text-purple-700',
+  },
+  waiting: {
+    label: '대기',
+    icon: <Pause className="h-3.5 w-3.5" />,
+    activeColor: 'text-orange-700',
+    barColor: 'bg-orange-500',
+    countColor: 'bg-gray-100 text-gray-500',
+    countActiveColor: 'bg-orange-100 text-orange-700',
+  },
+  in_progress: {
+    label: '진행중',
+    icon: <Play className="h-3.5 w-3.5" />,
+    activeColor: 'text-sky-700',
+    barColor: 'bg-sky-500',
+    countColor: 'bg-gray-100 text-gray-500',
+    countActiveColor: 'bg-sky-100 text-sky-700',
+  },
+  resolved: {
+    label: '완료',
+    icon: <CheckCircle2 className="h-3.5 w-3.5" />,
+    activeColor: 'text-green-700',
+    barColor: 'bg-green-600',
+    countColor: 'bg-gray-100 text-gray-500',
+    countActiveColor: 'bg-green-100 text-green-700',
+  },
+};
+
+function sortByImpact(issues: DbIssue[]): DbIssue[] {
+  return [...issues].sort((a, b) => getImpactConfig(a.impact).order - getImpactConfig(b.impact).order);
+}
 
 export default function IssueTracker({ issues, teamId, users, onRefresh }: Props) {
   const teamIssues = getTeamIssues(issues, teamId);
-  const activeIssues = teamIssues.filter((i) => i.state !== 'resolved');
-  const resolvedIssues = teamIssues.filter((i) => i.state === 'resolved');
+  const briefingIssues = sortByImpact(teamIssues.filter((i) => i.state === 'open' && (i.category ?? 'briefing') === 'briefing'));
+  const decisionIssues = sortByImpact(teamIssues.filter((i) => i.state === 'open' && (i.category ?? 'briefing') === 'decision'));
+  const waitingIssues = sortByImpact(teamIssues.filter((i) => i.state === 'waiting'));
+  const inProgressIssues = sortByImpact(teamIssues.filter((i) => i.state === 'in_progress'));
+  const resolvedIssues = sortByImpact(teamIssues.filter((i) => i.state === 'resolved'));
 
-  const [tab, setTab] = useState<TabType>('active');
-  const displayIssues = tab === 'active' ? activeIssues : resolvedIssues;
+  const [tab, setTab] = useState<TabType>('briefing');
+  const displayIssues =
+    tab === 'briefing' ? briefingIssues : tab === 'decision' ? decisionIssues : tab === 'waiting' ? waitingIssues : tab === 'in_progress' ? inProgressIssues : resolvedIssues;
+
+  const tabCounts: Record<TabType, number> = {
+    briefing: briefingIssues.length,
+    decision: decisionIssues.length,
+    waiting: waitingIssues.length,
+    in_progress: inProgressIssues.length,
+    resolved: resolvedIssues.length,
+  };
 
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newAssignee, setNewAssignee] = useState('');
   const [newImpact, setNewImpact] = useState<IssueImpact>('medium');
+  const [newCategory, setNewCategory] = useState<IssueCategory>('briefing');
+  const [newDueDate, setNewDueDate] = useState<Date | null>(null);
   const [creating, setCreating] = useState(false);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -81,7 +173,6 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
   const handleUploadImages = useCallback(async (issueId: string, files: File[]) => {
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
     if (imageFiles.length === 0) return;
-
     setUploading(issueId);
     try {
       const urls: string[] = [];
@@ -138,11 +229,15 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
         description: newDesc.trim() || undefined,
         assignee_name: newAssignee.trim(),
         impact: newImpact,
+        category: newCategory,
+        due_date: newDueDate ? `${newDueDate.getFullYear()}-${String(newDueDate.getMonth() + 1).padStart(2, '0')}-${String(newDueDate.getDate()).padStart(2, '0')}` : null,
       });
       setNewTitle('');
       setNewDesc('');
       setNewAssignee('');
       setNewImpact('medium');
+      setNewCategory('briefing');
+      setNewDueDate(null);
       setShowCreate(false);
       await onRefresh();
     } catch (err) {
@@ -158,6 +253,33 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
       await onRefresh();
     } catch (err) {
       console.error('[PULSE] update issue error', err);
+    }
+  };
+
+  const handleImpactChange = async (issue: DbIssue, newImpact: IssueImpact) => {
+    try {
+      await updateIssue(issue.id, { impact: newImpact });
+      await onRefresh();
+    } catch (err) {
+      console.error('[PULSE] update impact error', err);
+    }
+  };
+
+  const handleCategoryChange = async (issue: DbIssue, newCat: IssueCategory) => {
+    try {
+      await updateIssue(issue.id, { category: newCat });
+      await onRefresh();
+    } catch (err) {
+      console.error('[PULSE] update category error', err);
+    }
+  };
+
+  const handleDueDateChange = async (issueId: string, date: Date | null) => {
+    try {
+      await updateIssue(issueId, { due_date: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : undefined });
+      await onRefresh();
+    } catch (err) {
+      console.error('[PULSE] update due_date error', err);
     }
   };
 
@@ -218,9 +340,7 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
   const saveDecision = async (issueId: string) => {
     setSaving(true);
     try {
-      await updateIssue(issueId, {
-        decision: editDecision.trim() || undefined,
-      });
+      await updateIssue(issueId, { decision: editDecision.trim() || undefined });
       setEditDecisionId(null);
       await onRefresh();
     } catch (err) {
@@ -231,7 +351,7 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
   };
 
   return (
-    <div className="rounded-2xl border-2 border-blue-200 bg-white shadow-lg overflow-hidden">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
@@ -269,62 +389,49 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
         <div className="flex items-center gap-2.5">
           <AlertCircle className="h-5 w-5 text-blue-600" />
-          <h3 className="font-bold text-lg text-gray-900">이슈 트래커</h3>
+          <h3 className="font-bold text-xl text-gray-900">이슈 트래커</h3>
         </div>
         <Button
           variant="outline"
           size="sm"
-          className="h-8 text-xs gap-1.5 rounded-lg border-gray-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all duration-200"
-          onClick={() => { setShowCreate(!showCreate); setTab('active'); }}
+          className="h-9 text-sm gap-1.5 rounded-lg border-gray-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all duration-200"
+          onClick={() => { setShowCreate(!showCreate); }}
         >
-          <Plus className="h-3.5 w-3.5" /> 이슈 추가
+          <Plus className="h-4 w-4" /> 이슈 추가
         </Button>
       </div>
 
       {/* Tabs */}
       <div className="flex border-b border-gray-100">
-        <button
-          onClick={() => setTab('active')}
-          className={cn(
-            'flex-1 py-2.5 text-sm font-medium text-center transition-all duration-200 relative',
-            tab === 'active' ? 'text-blue-700' : 'text-gray-400 hover:text-gray-600'
-          )}
-        >
-          <span className="flex items-center justify-center gap-1.5">
-            <AlertCircle className="h-3.5 w-3.5" />
-            진행중
-            {activeIssues.length > 0 && (
-              <span className={cn(
-                'rounded-full px-1.5 py-0.5 text-xs font-semibold min-w-[20px]',
-                tab === 'active' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-500'
-              )}>
-                {activeIssues.length}
+        {(['briefing', 'decision', 'waiting', 'in_progress', 'resolved'] as TabType[]).map((t) => {
+          const cfg = tabConfig[t];
+          const isActive = tab === t;
+          const count = tabCounts[t];
+          return (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={cn(
+                'flex-1 py-3 text-sm font-medium text-center transition-all duration-200 relative',
+                isActive ? cfg.activeColor : 'text-gray-400 hover:text-gray-600'
+              )}
+            >
+              <span className="flex items-center justify-center gap-1.5">
+                {cfg.icon}
+                {cfg.label}
+                {count > 0 && (
+                  <span className={cn(
+                    'rounded-full px-1.5 py-0.5 text-xs font-semibold min-w-[20px]',
+                    isActive ? cfg.countActiveColor : cfg.countColor
+                  )}>
+                    {count}
+                  </span>
+                )}
               </span>
-            )}
-          </span>
-          {tab === 'active' && <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-blue-600 rounded-full" />}
-        </button>
-        <button
-          onClick={() => setTab('resolved')}
-          className={cn(
-            'flex-1 py-2.5 text-sm font-medium text-center transition-all duration-200 relative',
-            tab === 'resolved' ? 'text-green-700' : 'text-gray-400 hover:text-gray-600'
-          )}
-        >
-          <span className="flex items-center justify-center gap-1.5">
-            <CheckCircle2 className="h-3.5 w-3.5" />
-            완료
-            {resolvedIssues.length > 0 && (
-              <span className={cn(
-                'rounded-full px-1.5 py-0.5 text-xs font-semibold min-w-[20px]',
-                tab === 'resolved' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-              )}>
-                {resolvedIssues.length}
-              </span>
-            )}
-          </span>
-          {tab === 'resolved' && <div className="absolute bottom-0 left-4 right-4 h-0.5 bg-green-600 rounded-full" />}
-        </button>
+              {isActive && <div className={cn('absolute bottom-0 left-4 right-4 h-0.5 rounded-full', cfg.barColor)} />}
+            </button>
+          );
+        })}
       </div>
 
       {/* Create Form */}
@@ -361,6 +468,35 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
               <option value="low">낮음</option>
             </select>
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <select
+              className="h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all duration-200"
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value as IssueCategory)}
+            >
+              <option value="briefing">현황 브리핑</option>
+              <option value="decision">의사결정 필요</option>
+            </select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    'h-11 rounded-xl border border-gray-200 bg-white px-3 text-sm text-left flex items-center gap-2 hover:border-blue-300 transition-colors w-full',
+                    !newDueDate && 'text-gray-400'
+                  )}
+                >
+                  <CalendarIcon className="h-4 w-4 shrink-0 text-gray-400" />
+                  {newDueDate
+                    ? format(newDueDate, 'yyyy.MM.dd', { locale: ko })
+                    : '마감일 선택'}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-3" align="start">
+                <Calendar selected={newDueDate} onSelect={setNewDueDate} />
+              </PopoverContent>
+            </Popover>
+          </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" size="sm" className="rounded-lg" onClick={() => setShowCreate(false)}>취소</Button>
             <Button
@@ -379,16 +515,17 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
       <div className="divide-y divide-gray-100">
         {displayIssues.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm text-gray-400">
-            {tab === 'active' ? '진행중인 이슈가 없습니다' : '완료된 이슈가 없습니다'}
+            {tab === 'briefing' ? '브리핑 이슈가 없습니다' : tab === 'decision' ? '의사결정 필요 이슈가 없습니다' : tab === 'waiting' ? '대기중인 이슈가 없습니다' : tab === 'in_progress' ? '진행중인 이슈가 없습니다' : '완료된 이슈가 없습니다'}
           </div>
         ) : (
-          displayIssues.map((issue) => {
+          displayIssues.map((issue, idx) => {
             const isExpanded = expandedId === issue.id;
             const isEditingTitle = editTitleId === issue.id;
             const isEditingDesc = editDescId === issue.id;
             const isEditingDecision = editDecisionId === issue.id;
             const isUploading = uploading === issue.id;
             const issueImages = issue.images ?? [];
+            const seqNum = idx + 1;
 
             return (
               <div
@@ -397,7 +534,12 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                 onPaste={(e) => { if (isExpanded) handlePaste(issue.id, e); }}
               >
                 {/* Row Header */}
-                <div className="flex items-center gap-3 px-5 py-3">
+                <div className="flex items-center gap-3 px-5 py-3.5">
+                  {/* 순번 */}
+                  <span className="text-sm font-bold text-gray-400 w-5 text-center shrink-0">
+                    {seqNum}
+                  </span>
+
                   <button
                     onClick={() => setExpandedId(isExpanded ? null : issue.id)}
                     className="text-gray-400 hover:text-gray-600 shrink-0 transition-colors"
@@ -406,16 +548,15 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                   </button>
 
                   <div className={cn(
-                    'h-2.5 w-2.5 rounded-full shrink-0',
-                    issue.impact === 'high' ? 'bg-red-400' :
-                    issue.impact === 'medium' ? 'bg-amber-400' : 'bg-gray-300'
+                    'h-2.5 w-2.5 rounded-full shrink-0 transition-transform hover:scale-125',
+                    getImpactConfig(issue.impact).bgColor
                   )} />
 
                   <div className="flex-1 min-w-0">
                     {isEditingTitle ? (
                       <div className="flex items-center gap-2">
                         <Input
-                          className="h-8 text-sm font-medium bg-white border-gray-200 focus:border-blue-400 rounded-lg"
+                          className="h-9 text-base font-medium bg-white border-gray-200 focus:border-blue-400 rounded-lg"
                           value={editTitle}
                           onChange={(e) => setEditTitle(e.target.value)}
                           autoFocus
@@ -438,14 +579,14 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                         onDoubleClick={(e) => { e.stopPropagation(); startEditTitle(issue); }}
                       >
                         <p className={cn(
-                          'text-sm font-medium',
+                          'text-base font-medium',
                           issue.state === 'resolved' ? 'text-gray-400 line-through' : 'text-gray-800'
                         )}>
                           {issue.title}
                         </p>
                         {!isExpanded && (
                           <div className="flex items-center gap-2 mt-0.5">
-                            {issue.description && <p className="text-xs text-gray-400 line-clamp-1">{issue.description}</p>}
+                            {issue.description && <p className="text-sm text-gray-400 line-clamp-1">{issue.description}</p>}
                             {issueImages.length > 0 && (
                               <span className="text-xs text-gray-400 flex items-center gap-0.5 shrink-0">
                                 <ImagePlus className="h-3 w-3" /> {issueImages.length}
@@ -457,45 +598,149 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                     )}
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0">
                     {issue.decision && (
                       <span className="rounded-full bg-purple-50 text-purple-600 border border-purple-100 px-2 py-0.5 text-xs font-medium flex items-center gap-1">
                         <Scale className="h-3 w-3" /> 결정
                       </span>
                     )}
-                    <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', impactConfig[issue.impact].color)}>
-                      {impactConfig[issue.impact].label}
-                    </span>
-                    <select
-                      className={cn('rounded-full px-2 py-0.5 text-xs font-medium border-0 cursor-pointer appearance-none', stateConfig[issue.state].color)}
-                      value={issue.state}
-                      onChange={(e) => handleStateChange(issue, e.target.value as IssueState)}
-                    >
-                      {STATE_OPTIONS.map((s) => (
-                        <option key={s} value={s}>{stateConfig[s].label}</option>
-                      ))}
-                    </select>
+                    {/* Priority selector */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className={cn(
+                            'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all hover:ring-2 hover:ring-offset-1',
+                            getImpactConfig(issue.impact).color,
+                            'hover:ring-' + ((issue.impact ?? 'medium') === 'high' ? 'red' : (issue.impact ?? 'medium') === 'medium' ? 'amber' : 'gray') + '-200'
+                          )}
+                        >
+                          {getImpactConfig(issue.impact).icon}
+                          {getImpactConfig(issue.impact).label}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-32 p-1" align="end">
+                        <div className="flex flex-col gap-0.5">
+                          {IMPACT_OPTIONS.map((impact) => (
+                            <button
+                              key={impact}
+                              onClick={() => handleImpactChange(issue, impact)}
+                              className={cn(
+                                'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors w-full text-left',
+                                (issue.impact ?? 'medium') === impact ? getImpactConfig(impact).color : 'hover:bg-gray-100 text-gray-600'
+                              )}
+                            >
+                              {getImpactConfig(impact).icon}
+                              {getImpactConfig(impact).label}
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    {/* Category selector */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className={cn(
+                            'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all hover:ring-2 hover:ring-offset-1',
+                            getCategoryConfig(issue.category).color
+                          )}
+                        >
+                          {getCategoryConfig(issue.category).icon}
+                          {getCategoryConfig(issue.category).label}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-32 p-1" align="end">
+                        <div className="flex flex-col gap-0.5">
+                          {CATEGORY_OPTIONS.map((cat) => (
+                            <button
+                              key={cat}
+                              onClick={() => handleCategoryChange(issue, cat)}
+                              className={cn(
+                                'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors w-full text-left',
+                                (issue.category ?? 'briefing') === cat ? getCategoryConfig(cat).color : 'hover:bg-gray-100 text-gray-600'
+                              )}
+                            >
+                              {getCategoryConfig(cat).icon}
+                              {getCategoryConfig(cat).label}
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                    {/* State selector */}
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          className={cn(
+                            'flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium transition-all hover:ring-2 hover:ring-offset-1',
+                            getStateConfig(issue.state).color
+                          )}
+                        >
+                          {getStateConfig(issue.state).icon}
+                          {getStateConfig(issue.state).label}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-32 p-1" align="end">
+                        <div className="flex flex-col gap-0.5">
+                          {STATE_CHANGE_OPTIONS.map((state) => (
+                            <button
+                              key={state}
+                              onClick={() => handleStateChange(issue, state)}
+                              className={cn(
+                                'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors w-full text-left',
+                                (issue.state ?? 'open') === state ? getStateConfig(state).color : 'hover:bg-gray-100 text-gray-600'
+                              )}
+                            >
+                              {getStateConfig(state).icon}
+                              {getStateConfig(state).label}
+                            </button>
+                          ))}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
 
                 {/* Meta */}
-                {(issue.assignee_name || issue.due_date) && (
-                  <div className="px-5 pb-2 pl-14">
-                    <p className="text-xs text-gray-400">
-                      {issue.assignee_name && `담당: ${issue.assignee_name}`}
-                      {issue.due_date && ` · 마감: ${new Date(issue.due_date).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}`}
-                    </p>
-                  </div>
-                )}
+                <div className="px-5 pb-2 pl-16 flex items-center gap-3 flex-wrap">
+                  {issue.assignee_name && (
+                    <span className="text-sm text-gray-400">담당: {issue.assignee_name}</span>
+                  )}
+                  {/* Due date with calendar */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className={cn(
+                          'inline-flex items-center gap-1 text-sm rounded-md px-2 py-0.5 transition-colors',
+                          issue.due_date
+                            ? 'text-blue-600 bg-blue-50 hover:bg-blue-100'
+                            : 'text-gray-400 hover:bg-gray-100'
+                        )}
+                      >
+                        <CalendarIcon className="h-3.5 w-3.5" />
+                        {issue.due_date
+                          ? format(new Date(issue.due_date), 'M월 d일', { locale: ko })
+                          : '날짜 지정'}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-3" align="start">
+                      <Calendar
+                        selected={issue.due_date ? new Date(issue.due_date) : null}
+                        onSelect={(date) => handleDueDateChange(issue.id, date)}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
 
                 {/* Expanded Detail */}
                 {isExpanded && (
-                  <div className="border-t border-gray-100 mx-5 py-3 pl-9 space-y-3">
+                  <div className="border-t border-gray-100 mx-5 py-4 pl-11 space-y-4">
                     {/* Description */}
                     {isEditingDesc ? (
                       <div className="space-y-2">
                         <Textarea
-                          className="text-sm resize-none bg-white border-gray-200 focus:border-blue-400 rounded-xl"
+                          className="text-base resize-none bg-white border-gray-200 focus:border-blue-400 rounded-xl"
                           rows={4}
                           value={editDesc}
                           onChange={(e) => setEditDesc(e.target.value)}
@@ -507,9 +752,9 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                           }}
                         />
                         <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg" onClick={() => setEditDescId(null)}>취소</Button>
-                          <Button size="sm" className="h-7 text-xs gap-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg" disabled={saving} onClick={() => saveDesc(issue.id)}>
-                            <Check className="h-3 w-3" /> {saving ? '저장 중...' : '저장'}
+                          <Button variant="ghost" size="sm" className="h-8 text-sm rounded-lg" onClick={() => setEditDescId(null)}>취소</Button>
+                          <Button size="sm" className="h-8 text-sm gap-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg" disabled={saving} onClick={() => saveDesc(issue.id)}>
+                            <Check className="h-3.5 w-3.5" /> {saving ? '저장 중...' : '저장'}
                           </Button>
                         </div>
                       </div>
@@ -518,42 +763,42 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                         onClick={() => startEditDesc(issue)}
                         className="cursor-pointer rounded-xl hover:bg-gray-50 p-3 -m-3 transition-all duration-200 group/desc"
                       >
-                        <p className="text-xs font-semibold text-gray-500 mb-1">내용</p>
+                        <p className="text-sm font-semibold text-gray-500 mb-1">내용</p>
                         {issue.description ? (
-                          <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{issue.description}</p>
+                          <p className="text-base text-gray-600 whitespace-pre-wrap leading-relaxed">{issue.description}</p>
                         ) : (
-                          <p className="text-sm text-gray-400 italic">클릭하여 내용을 추가하세요...</p>
+                          <p className="text-base text-gray-400 italic">클릭하여 내용을 추가하세요...</p>
                         )}
-                        <Pencil className="h-3 w-3 text-gray-300 mt-1 opacity-0 group-hover/desc:opacity-100 transition-opacity" />
+                        <Pencil className="h-3.5 w-3.5 text-gray-300 mt-1.5 opacity-0 group-hover/desc:opacity-100 transition-opacity" />
                       </div>
                     )}
 
                     {/* Images */}
-                    <div className="border-t border-gray-100 pt-3">
+                    <div className="border-t border-gray-100 pt-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-1.5">
-                          <ImagePlus className="h-3.5 w-3.5 text-teal-500" />
-                          <span className="text-xs font-semibold text-teal-600">
+                          <ImagePlus className="h-4 w-4 text-teal-500" />
+                          <span className="text-sm font-semibold text-teal-600">
                             첨부 이미지 {issueImages.length > 0 && `(${issueImages.length})`}
                           </span>
                         </div>
                         <button
                           onClick={() => { setImageTargetIssueId(issue.id); fileInputRef.current?.click(); }}
                           disabled={isUploading}
-                          className="flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 transition-colors"
+                          className="flex items-center gap-1 text-sm text-teal-600 hover:text-teal-700 transition-colors"
                         >
-                          {isUploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                          {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
                           {isUploading ? '업로드 중...' : '이미지 추가'}
                         </button>
                       </div>
 
                       {issueImages.length > 0 && (
                         <div className="grid grid-cols-3 gap-2 mb-2">
-                          {issueImages.map((url, idx) => (
-                            <div key={idx} className="relative group/img rounded-lg overflow-hidden border border-gray-200 aspect-video bg-gray-50">
+                          {issueImages.map((url, imgIdx) => (
+                            <div key={imgIdx} className="relative group/img rounded-lg overflow-hidden border border-gray-200 aspect-video bg-gray-50">
                               <img
                                 src={url}
-                                alt={`첨부 ${idx + 1}`}
+                                alt={`첨부 ${imgIdx + 1}`}
                                 className="w-full h-full object-cover cursor-pointer"
                                 onClick={() => setPreviewImage(url)}
                               />
@@ -574,15 +819,15 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                     </div>
 
                     {/* Decision */}
-                    <div className="border-t border-gray-100 pt-3">
+                    <div className="border-t border-gray-100 pt-4">
                       {isEditingDecision ? (
                         <div className="space-y-2">
                           <div className="flex items-center gap-1.5 mb-1">
-                            <Scale className="h-3.5 w-3.5 text-purple-500" />
-                            <span className="text-xs font-semibold text-purple-600">결정사항</span>
+                            <Scale className="h-4 w-4 text-purple-500" />
+                            <span className="text-sm font-semibold text-purple-600">결정사항</span>
                           </div>
                           <Textarea
-                            className="text-sm resize-none bg-white border-gray-200 focus:border-purple-400 rounded-xl"
+                            className="text-base resize-none bg-white border-gray-200 focus:border-purple-400 rounded-xl"
                             rows={3}
                             value={editDecision}
                             onChange={(e) => setEditDecision(e.target.value)}
@@ -594,9 +839,9 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                             }}
                           />
                           <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm" className="h-7 text-xs rounded-lg" onClick={() => setEditDecisionId(null)}>취소</Button>
-                            <Button size="sm" className="h-7 text-xs gap-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg" disabled={saving} onClick={() => saveDecision(issue.id)}>
-                              <Check className="h-3 w-3" /> {saving ? '저장 중...' : '저장'}
+                            <Button variant="ghost" size="sm" className="h-8 text-sm rounded-lg" onClick={() => setEditDecisionId(null)}>취소</Button>
+                            <Button size="sm" className="h-8 text-sm gap-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg" disabled={saving} onClick={() => saveDecision(issue.id)}>
+                              <Check className="h-3.5 w-3.5" /> {saving ? '저장 중...' : '저장'}
                             </Button>
                           </div>
                         </div>
@@ -606,33 +851,33 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
                           className="cursor-pointer rounded-xl hover:bg-purple-50/50 p-3 -m-3 transition-all duration-200 group/dec"
                         >
                           <div className="flex items-center gap-1.5 mb-1">
-                            <Scale className="h-3.5 w-3.5 text-purple-500" />
-                            <span className="text-xs font-semibold text-purple-600">결정사항</span>
+                            <Scale className="h-4 w-4 text-purple-500" />
+                            <span className="text-sm font-semibold text-purple-600">결정사항</span>
                           </div>
                           {issue.decision ? (
-                            <div className="rounded-lg bg-purple-50 border border-purple-100 p-2.5">
-                              <p className="text-sm text-purple-800 whitespace-pre-wrap leading-relaxed">{issue.decision}</p>
+                            <div className="rounded-lg bg-purple-50 border border-purple-100 p-3">
+                              <p className="text-base text-purple-800 whitespace-pre-wrap leading-relaxed">{issue.decision}</p>
                               {issue.decision_at && (
-                                <p className="text-xs text-purple-400 mt-1">
+                                <p className="text-sm text-purple-400 mt-1">
                                   {new Date(issue.decision_at).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 결정
                                 </p>
                               )}
                             </div>
                           ) : (
-                            <p className="text-sm text-gray-400 italic">클릭하여 결정사항을 입력하세요...</p>
+                            <p className="text-base text-gray-400 italic">클릭하여 결정사항을 입력하세요...</p>
                           )}
-                          <Pencil className="h-3 w-3 text-gray-300 mt-1 opacity-0 group-hover/dec:opacity-100 transition-opacity" />
+                          <Pencil className="h-3.5 w-3.5 text-gray-300 mt-1.5 opacity-0 group-hover/dec:opacity-100 transition-opacity" />
                         </div>
                       )}
                     </div>
 
                     {/* Delete */}
-                    <div className="border-t border-gray-100 pt-3 flex justify-end">
+                    <div className="border-t border-gray-100 pt-4 flex justify-end">
                       <button
                         onClick={() => handleDelete(issue.id)}
-                        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-500 transition-colors duration-200"
+                        className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-red-500 transition-colors duration-200"
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                         이슈 삭제
                       </button>
                     </div>

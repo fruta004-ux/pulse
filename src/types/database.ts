@@ -3,7 +3,8 @@
 export type UserRole = 'admin' | 'executive' | 'lead' | 'member';
 export type TeamStatus = 'green' | 'yellow' | 'red';
 export type IssueImpact = 'high' | 'medium' | 'low';
-export type IssueState = 'open' | 'in_progress' | 'resolved';
+export type IssueState = 'open' | 'waiting' | 'in_progress' | 'resolved';
+export type IssueCategory = 'briefing' | 'decision';
 export type DecisionState = 'pending' | 'decided' | 'followup_done';
 
 export interface DbUser {
@@ -57,6 +58,7 @@ export interface DbIssue {
   description: string | null;
   impact: IssueImpact;
   state: IssueState;
+  category: IssueCategory;
   owner_user_id: string | null;
   assignee_name: string;
   due_date: string | null;
@@ -95,6 +97,15 @@ export interface DbTeamMemo {
 }
 
 export interface DbTeamDirection {
+  id: string;
+  team_id: string;
+  title: string;
+  content: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface DbTeamSystem {
   id: string;
   team_id: string;
   title: string;

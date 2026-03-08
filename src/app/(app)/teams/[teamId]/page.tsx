@@ -4,14 +4,14 @@ import { use } from 'react';
 import { usePulseData } from '@/hooks/usePulseData';
 import TeamHeader from '@/components/team/TeamHeader';
 import DirectionSection from '@/components/team/DirectionSection';
+import SystemSection from '@/components/team/SystemSection';
 import IssueTracker from '@/components/team/IssueTracker';
-import ActionItemList from '@/components/team/ActionItemList';
 import TeamMemos from '@/components/team/TeamMemos';
 import { Loader2 } from 'lucide-react';
 
 export default function TeamDetailPage({ params }: { params: Promise<{ teamId: string }> }) {
   const { teamId } = use(params);
-  const { users, teams, issues, actions, decisions, loading, error, refresh } = usePulseData();
+  const { users, teams, issues, loading, error, refresh } = usePulseData();
 
   if (loading) {
     return (
@@ -47,20 +47,20 @@ export default function TeamDetailPage({ params }: { params: Promise<{ teamId: s
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
+    <div>
       <div className="mb-6">
         <TeamHeader team={team} />
       </div>
       <div className="flex gap-6 items-start">
-        {/* Left: Direction */}
-        <div className="w-72 shrink-0 sticky top-20">
+        {/* Left sidebar */}
+        <div className="w-80 shrink-0 sticky top-20 space-y-4">
           <DirectionSection teamId={teamId} />
+          <SystemSection teamId={teamId} />
         </div>
 
-        {/* Right: Main content */}
+        {/* Main content */}
         <div className="flex-1 min-w-0 space-y-6">
           <IssueTracker issues={issues} teamId={teamId} users={users} onRefresh={refresh} />
-          <ActionItemList actions={actions} teamId={teamId} users={users} onRefresh={refresh} />
           <TeamMemos teamId={teamId} />
         </div>
       </div>

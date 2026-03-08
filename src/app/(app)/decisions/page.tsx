@@ -177,7 +177,7 @@ export default function DecisionsPage() {
           }
         </div>
       ) : (
-        <div className="rounded-2xl border-2 border-blue-200 bg-white shadow-lg overflow-hidden divide-y divide-gray-100">
+        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden divide-y divide-gray-100">
           {filtered.map((d) => {
             const config = stateConfig[d.state];
             const isExpanded = expandedId === d.id;
