@@ -27,6 +27,7 @@ import {
   Loader2,
   Megaphone,
   CalendarIcon,
+  User,
   Circle,
   Clock,
   Play,
@@ -163,6 +164,9 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
 
   const [editDecisionId, setEditDecisionId] = useState<string | null>(null);
   const [editDecision, setEditDecision] = useState('');
+
+  const [editAssigneeId, setEditAssigneeId] = useState<string | null>(null);
+  const [editAssignee, setEditAssignee] = useState('');
 
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -328,6 +332,24 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
       await onRefresh();
     } catch (err) {
       console.error('[PULSE] delete issue error', err);
+    }
+  };
+
+  const startEditAssignee = (issue: DbIssue) => {
+    setEditAssigneeId(issue.id);
+    setEditAssignee(issue.assignee_name ?? '');
+  };
+
+  const saveAssignee = async (issueId: string) => {
+    setSaving(true);
+    try {
+      await updateIssue(issueId, { assignee_name: editAssignee.trim() });
+      setEditAssigneeId(null);
+      await onRefresh();
+    } catch (err) {
+      console.error('[PULSE] update assignee error', err);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -703,8 +725,40 @@ export default function IssueTracker({ issues, teamId, users, onRefresh }: Props
 
                 {/* Meta */}
                 <div className="px-5 pb-2 pl-16 flex items-center gap-3 flex-wrap">
-                  {issue.assignee_name && (
-                    <span className="text-sm text-gray-400">담당: {issue.assignee_name}</span>
+                  {editAssigneeId === issue.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <User className="h-3.5 w-3.5 text-gray-400" />
+                      <Input
+                        className="h-7 w-32 text-sm bg-white border-gray-200 focus:border-blue-400 rounded-lg px-2"
+                        value={editAssignee}
+                        onChange={(e) => setEditAssignee(e.target.value)}
+                        placeholder="담당자"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') { e.preventDefault(); saveAssignee(issue.id); }
+                          if (e.key === 'Escape') setEditAssigneeId(null);
+                        }}
+                      />
+                      <button onClick={() => saveAssignee(issue.id)} disabled={saving} className="text-blue-600 hover:text-blue-700 shrink-0">
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => setEditAssigneeId(null)} className="text-gray-400 hover:text-gray-600 shrink-0">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => startEditAssignee(issue)}
+                      className={cn(
+                        'inline-flex items-center gap-1 text-sm rounded-md px-2 py-0.5 transition-colors',
+                        issue.assignee_name
+                          ? 'text-gray-500 hover:bg-gray-100'
+                          : 'text-gray-400 hover:bg-gray-100'
+                      )}
+                    >
+                      <User className="h-3.5 w-3.5" />
+                      {issue.assignee_name ? `담당: ${issue.assignee_name}` : '담당자 지정'}
+                    </button>
                   )}
                   {/* Due date with calendar */}
                   <Popover>
