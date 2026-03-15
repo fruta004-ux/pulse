@@ -33,7 +33,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <OrgCanvas teams={teams} issues={issues} />
+      <OrgCanvas teams={teams} issues={issues} onRefresh={refresh} />
       <UpdateModal teams={teams} reports={reports} users={users} onSuccess={refresh} />
     </div>
   );

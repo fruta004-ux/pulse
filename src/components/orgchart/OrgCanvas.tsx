@@ -10,13 +10,14 @@ import {
 } from 'react';
 import { useRouter } from 'next/navigation';
 import type { DbTeam, DbIssue } from '@/types/database';
-import { updateTeamPosition } from '@/lib/queries';
+import { updateTeamPosition, updateTeam } from '@/lib/queries';
 import OrgNodeCard from './OrgNodeCard';
 import { ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 interface Props {
   teams: DbTeam[];
   issues: DbIssue[];
+  onRefresh?: () => Promise<void>;
 }
 
 interface DragState {
@@ -81,7 +82,7 @@ function autoLayout(teams: DbTeam[]): Map<string, { x: number; y: number }> {
   return positions;
 }
 
-export default function OrgCanvas({ teams, issues }: Props) {
+export default function OrgCanvas({ teams, issues, onRefresh }: Props) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [positions, setPositions] = useState<Map<string, { x: number; y: number }>>(
@@ -255,6 +256,15 @@ export default function OrgCanvas({ teams, issues }: Props) {
     }
   }, [router]);
 
+  const handleColorChange = useCallback(async (teamId: string, color: string | null) => {
+    try {
+      await updateTeam(teamId, { color });
+      await onRefresh?.();
+    } catch (err) {
+      console.error('Failed to update team color', err);
+    }
+  }, [onRefresh]);
+
   return (
     <div className="relative w-full h-[calc(100vh-160px)] rounded-2xl border-2 border-gray-200 bg-gray-50 overflow-hidden">
       {/* Toolbar */}
@@ -355,6 +365,7 @@ export default function OrgCanvas({ teams, issues }: Props) {
                   isDragging={dragging?.teamId === team.id}
                   onGripPointerDown={(e) => handleGripPointerDown(team.id, e)}
                   onClick={() => handleCardClick(team.id)}
+                  onColorChange={(color) => handleColorChange(team.id, color)}
                 />
               </div>
             );

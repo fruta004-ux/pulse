@@ -15,10 +15,23 @@ export default function TeamCard({ team, issues }: Props) {
   const teamIssues = getTeamIssues(issues, team.id);
   const openIssues = teamIssues.filter((i) => i.state === 'open');
   const highIssues = openIssues.filter((i) => i.impact === 'high');
+  const teamColor = team.color ?? null;
 
   return (
     <Link href={`/teams/${team.id}`}>
-      <div className="group relative bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5">
+      <div
+        className={cn(
+          'group relative rounded-2xl overflow-hidden border shadow-sm hover:shadow-md transition-all duration-200 hover:-translate-y-0.5',
+          !teamColor && 'border-gray-200'
+        )}
+        style={{
+          borderColor: teamColor ?? undefined,
+          backgroundColor: teamColor ? `${teamColor}08` : '#fff',
+        }}
+      >
+        {teamColor && (
+          <div className="h-1" style={{ backgroundColor: teamColor }} />
+        )}
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-100">
           <div className="flex items-center justify-between">

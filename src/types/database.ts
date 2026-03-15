@@ -29,6 +29,7 @@ export interface DbTeam {
   parent_team_id: string | null;
   pos_x: number;
   pos_y: number;
+  color: string | null;
   created_at: string;
 }
 

@@ -113,7 +113,7 @@ export async function createTeam(team: {
 
 export async function updateTeam(
   id: string,
-  updates: Partial<Pick<DbTeam, 'name' | 'leader_name' | 'description' | 'member_count' | 'is_active' | 'parent_team_id' | 'pos_x' | 'pos_y'>>
+  updates: Partial<Pick<DbTeam, 'name' | 'leader_name' | 'description' | 'member_count' | 'is_active' | 'parent_team_id' | 'pos_x' | 'pos_y' | 'color'>>
 ): Promise<void> {
   const { error } = await supabase
     .from('teams')
